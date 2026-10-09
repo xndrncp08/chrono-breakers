@@ -75,6 +75,7 @@ local function snapshot(): { [string]: any }
 	out.stunned = movement.stunned
 	out.rooted = movement.rooted
 	out.invulnerable = movement.invulnerable
+	out.corePlayerList = game:GetService("StarterGui"):GetCoreGuiEnabled(Enum.CoreGuiType.PlayerList)
 	local result = ClientState.get("result")
 	if result then
 		out.result = {

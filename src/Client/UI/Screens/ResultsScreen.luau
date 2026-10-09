@@ -177,6 +177,14 @@ function ResultsScreen.new(parent: Instance, deps: { [string]: any })
 		modal:Focus(continueButton.Instance)
 	end)
 
+	-- A new match supersedes the previous results; don't leave them over the role reveal / HUD.
+	ClientState.observe("role", function(role)
+		local result = ClientState.get("result")
+		if role and result and role.matchId ~= result.matchId and modal:IsOpen() then
+			modal:Close()
+		end
+	end)
+
 	return { Modal = modal }
 end
 
