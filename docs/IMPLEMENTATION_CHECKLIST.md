@@ -8,7 +8,7 @@ interrupted, resume from the first unchecked item. Only tick items that were ver
 - [x] Toolchain installed via Homebrew: rojo 7.7.1, stylua 2.5.2, selene 0.32.0, luau 0.741, lune 0.10.5
 - [x] luau-lsp 1.70.1 installed to `~/.local/bin` (official GitHub release) for Roblox-aware type checking
 - [x] Lune harness prototype verified (Rojo-built place -> Lune deserialize -> ModuleScript loading)
-- [ ] Roblox Studio MCP plugin connection (was not connected at audit time)
+- [x] Roblox Studio MCP connected (Meganugger v4.0.0); root cause of earlier timeout: no plugin installed for the old server
 
 ## Phase 1 — Foundation
 - [x] Rojo projects (`default.project.json`, `test.project.json`)
@@ -45,11 +45,15 @@ Status 2026-10-09: full server+client implemented; 133 Lune tests green; analyze
 - [x] Unit + integration tests passing under Lune (145)
 - [x] stylua --check, selene, luau-lsp analyze clean
 - [x] rojo build succeeds
-- [ ] Studio playtest — BLOCKED: Studio MCP plugin never connected (place opened in running Studio; plugin timeout)
+- [x] Studio validation via MCP: engine boot + 145 in-engine tests; solo E2E 102/102; 2-player E2E 69/69
+- [x] Fixed (found in Studio): boot guard persisted into place (`33928e7`); CharacterAdded parenting (`a11e89f`)
+- [ ] BLOCKED: real DataStore verification (needs a published test experience with API access)
+- [ ] BLOCKED: screenshots/visual review, touch + gamepad (needs macOS Screen Recording/Accessibility for VS Code)
 - [x] Docs: README, GAME_DESIGN, ARCHITECTURE, NETWORK_CONTRACT, DATA_SCHEMA, TEST_PLAN, BALANCE, BUILD_AND_RUN, RELEASE_CHECKLIST
 
 ## Next actions (if resuming)
-1. Activate the Roblox Studio MCP plugin (or open `build/test.rbxl` manually) and run the
-   TEST_PLAN.md manual matrix; record results there.
-2. Fix anything found in Studio; re-run `./tools/test.sh` and `./tools/analyze.sh`.
-3. Commit (not done — commits were not authorised).
+1. Grant VS Code Screen Recording + Accessibility (restart VS Code), then capture screenshots of
+   lobby/HUD/results and run Device Emulator (phone, gamepad) checks; record in TEST_PLAN.md.
+2. Publish a separate *test* experience, enable Studio API access, and verify DataStore
+   load/save/session-lock across two servers.
+3. Run a 3–5 player Clients-and-Servers session.
