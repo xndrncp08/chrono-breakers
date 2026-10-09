@@ -1,0 +1,4 @@
+--!strict
+-- Intentionally empty. A Script named "Health" in StarterCharacterScripts replaces Roblox's
+-- default health-regeneration script, so health changes are owned exclusively by the server's
+-- CombatService (see docs/GAME_DESIGN.md, "Combat and elimination").
