@@ -1,0 +1,37 @@
+{
+	"name": "ChronoBreakers",
+	"tree": {
+		"$className": "DataModel",
+		"ReplicatedStorage": {
+			"Shared": {
+				"$path": "src/Shared"
+			}
+		},
+		"ServerScriptService": {
+			"Server": {
+				"$path": "src/Server"
+			}
+		},
+		"StarterPlayer": {
+			"StarterPlayerScripts": {
+				"Client": {
+					"$path": "src/Client"
+				}
+			},
+			"StarterCharacterScripts": {
+				"$path": "src/StarterCharacterScripts"
+			}
+		},
+		"Workspace": {
+			"$properties": {
+				"StreamingEnabled": false
+			}
+		},
+		"Players": {
+			"$properties": {
+				"CharacterAutoLoads": true,
+				"RespawnTime": 3
+			}
+		}
+	}
+}

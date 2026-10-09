@@ -1,0 +1,13 @@
+# Build outputs
+/build/
+*.rbxl
+*.rbxlx
+*.rbxm
+*.rbxmx
+sourcemap.json
+roblox.yml
+/.cache/
+
+# OS / editor
+.DS_Store
+*.lock.rbxl

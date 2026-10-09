@@ -1,0 +1,5 @@
+std = "roblox"
+
+[lints]
+# Strict type annotations make some shadowing intentional; keep the rest at defaults.
+shadowing = "allow"
