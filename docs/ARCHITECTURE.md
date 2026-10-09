@@ -17,8 +17,8 @@ exercised by Lune tests. Services adapt them to Roblox (Players, Humanoids, rayc
 
 ## Server bootstrap (`src/Server/Bootstrap.server.luau`)
 Requires every service, then runs `Init(registry)` for all, then `Start(registry)` for all, in
-this order. Any failure is fatal (`error`) with the service name; a server attribute prevents a
-duplicate boot.
+this order. Any failure is fatal (`error`) with the service name. `BootGuard` (module state, never
+an Instance attribute, so nothing can persist into a saved place) prevents a duplicate boot.
 
 | # | Service | Owns / does | Depends on |
 | --- | --- | --- | --- |
