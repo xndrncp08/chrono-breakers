@@ -105,6 +105,21 @@ return function(t: any)
 			t.expect(ds:GetRaw("Player_1").Data.ChronosScrap).toBe(999)
 		end)
 
+		t.it("does not re-acquire a released lock on a late non-release save", function()
+			local ds = MemoryDataStore.new()
+			local clock = { now = 0 }
+			local store = makeStore(ds, "jobA", clock)
+			local _, profile = store:load(1)
+			local p = profile :: ProfileSchema.Profile
+			p.ChronosScrap = 10
+			t.expect(store:save(1, p, true)).toBe("Saved")
+			-- An autosave that was already in flight lands after the release.
+			t.expect(store:save(1, p, false)).toBe("LockLost")
+			t.expect(ds:GetRaw("Player_1").Lock).toBeNil()
+			local status = makeStore(ds, "jobB", clock):load(1)
+			t.expect(status).toBe("Loaded")
+		end)
+
 		t.it("does not overwrite profiles from a newer schema and releases the lock", function()
 			local ds = MemoryDataStore.new()
 			ds:SetRaw("Player_1", { Data = { SchemaVersion = 50, ChronosScrap = 3 } })

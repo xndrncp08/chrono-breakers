@@ -115,7 +115,9 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		else
 			self.progress = math.min(1, self.progress + dt / duration)
 		end
-		if self.progress >= 1 then
+		-- Tolerate float drift from summing many tick-sized steps (0.1 s ticks can land on 0.99999…).
+		if self.progress >= 1 - 1e-6 then
+			self.progress = 1
 			self.completedBy = self.hackerUserId
 			self.hackerUserId = nil
 			setState("Completed")

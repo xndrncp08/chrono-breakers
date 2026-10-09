@@ -194,6 +194,11 @@ local function runMatchOne(player: Player)
 	local snap = client(player, "snapshot")
 	check("client: connected and booted", snap and snap.connection == "Ready", snap and snap.connection)
 	check("client: lobby visible, HUD hidden", snap and snap.ui_Lobby == true and snap.ui_Hud == false, snap)
+	check(
+		"layout: lobby has no clipped or offscreen elements",
+		snap ~= nil and snap.layoutIssues ~= nil and #snap.layoutIssues == 0,
+		snap and { viewport = snap.viewport, issues = snap.layoutIssues }
+	)
 	check("client: connection overlay hidden", snap and snap.ui_ConnectionOverlay == false)
 	check("client: profile snapshot received", snap and type(snap.currency) == "number")
 
@@ -278,6 +283,11 @@ local function runMatchOne(player: Player)
 	snap = client(player, "snapshot")
 	check("client: HUD visible, lobby hidden", snap and snap.ui_Hud == true and snap.ui_Lobby == false, snap)
 	check("client: core PlayerList hidden (squad panel owns top-right)", snap and snap.corePlayerList == false)
+	check(
+		"layout: HUD has no clipped or offscreen elements",
+		snap ~= nil and snap.layoutIssues ~= nil and #snap.layoutIssues == 0,
+		snap and { viewport = snap.viewport, issues = snap.layoutIssues }
+	)
 	check("client: role reveal dismissed", snap and snap.ui_RoleReveal == false)
 	check(
 		"client: one gadget slot in the ability bar",
@@ -415,6 +425,11 @@ local function runMatchOne(player: Player)
 	task.wait(1)
 	snap = client(player, "snapshot")
 	check("client: hack panel visible while hacking", snap and snap.ui_HackPanel == true, snap and snap.ui_HackPanel)
+	check(
+		"layout: HUD while hacking has no clipped or offscreen elements",
+		snap ~= nil and snap.layoutIssues ~= nil and #snap.layoutIssues == 0,
+		snap and { viewport = snap.viewport, issues = snap.layoutIssues }
+	)
 	task.wait(4)
 	moveTo(player, here) -- walk away (teleport) out of range
 	check(
@@ -589,6 +604,11 @@ local function runMatchOne(player: Player)
 	snap = client(player, "snapshot")
 	check("client: results screen visible", snap and snap.ui_Results == true, snap and snap.ui_Results)
 	check(
+		"layout: results has no clipped or offscreen elements",
+		snap ~= nil and snap.layoutIssues ~= nil and #snap.layoutIssues == 0,
+		snap and { viewport = snap.viewport, issues = snap.layoutIssues }
+	)
+	check(
 		"client: victory with reward breakdown",
 		snap and snap.result and snap.result.won == true and snap.result.lines >= 3,
 		snap and snap.result
@@ -659,6 +679,11 @@ local function runMatchOne(player: Player)
 	)
 end
 
+local function walkSpeed(player: Player): number?
+	local h = humanoidOf(player)
+	return h and h.WalkSpeed
+end
+
 local function runMatchTwo(player: Player)
 	local d = MatchService.GetDirector()
 	local profile = PlayerDataService.GetProfile(player)
@@ -678,6 +703,17 @@ local function runMatchTwo(player: Player)
 		"client: match 1 results closed once match 2 role arrived (Continue never pressed)",
 		snap2 and snap2.ui_Results == false and snap2.ui_Hud == true,
 		snap2 and { results = snap2.ui_Results, hud = snap2.ui_Hud }
+	)
+	StatusEffectService.Apply(
+		player,
+		{ key = "e2eLongSlow", kind = "Slow", magnitude = 0.7, duration = 30, source = "E2E" }
+	)
+	check(
+		"match 2: long slow active before death (4.8)",
+		waitFor(function()
+			return near(walkSpeed(player), 4.8)
+		end, 2),
+		walkSpeed(player)
 	)
 	local humanoid = humanoidOf(player)
 	if humanoid then
@@ -727,6 +763,13 @@ local function runMatchTwo(player: Player)
 		rootOf(player) and (rootOf(player) :: BasePart).Position
 	)
 	check(
+		"match 2: death while slowed respawns at baseline 16",
+		waitFor(function()
+			return near(walkSpeed(player), 16)
+		end, 3),
+		walkSpeed(player)
+	)
+	check(
 		"match 2: lifecycle completes",
 		waitFor(function()
 			return d:getPhase() == "WaitingForPlayers" and d.session == nil
@@ -746,11 +789,6 @@ local function moveFacing(player: Player, position: Vector3, lookAt: Vector3)
 		character:PivotTo(CFrame.lookAt(position, Vector3.new(lookAt.X, position.Y, lookAt.Z)))
 		req({ "Services", "SecurityService" }).ResetMovement(player)
 	end
-end
-
-local function walkSpeed(player: Player): number?
-	local h = humanoidOf(player)
-	return h and h.WalkSpeed
 end
 
 local function runMultiplayer(a: Player, b: Player)
@@ -1135,6 +1173,32 @@ local function runMultiplayer(a: Player, b: Player)
 		waitFor(function()
 			return terminalState("ReactorTerminal") == "Hacking"
 		end, 3)
+		-- Leave a live zone and an armed trap in the world when the match resolves.
+		check(
+			"match 2: Keeper released",
+			waitFor(function()
+				return near(walkSpeed(stayer), 17)
+			end, 12),
+			walkSpeed(stayer)
+		)
+		moveFacing(stayer, Vector3.new(0, 3, 12), Vector3.new(0, 3, 25))
+		task.wait(0.3)
+		local liveZone = client(
+			stayer,
+			"fire",
+			{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(0, 0.2, 25) } :: { any } }
+		)
+		local liveTrap = client(
+			stayer,
+			"fire",
+			{ remote = "AbilityRequest", args = { "TemporalTrap", Vector3.new(8, 0.2, 24) } :: { any } }
+		)
+		local zonesLive, trapsLive = AbilityService.CountRuntime()
+		check(
+			"match 2: zone and trap live before resolution",
+			zonesLive == 1 and trapsLive == 1,
+			{ zones = zonesLive, traps = trapsLive, zone = codes(liveZone), trap = codes(liveTrap) }
+		)
 		local leaverId = leaver.UserId
 		leaver:Kick("E2E disconnect test")
 		check(
@@ -1149,6 +1213,12 @@ local function runMultiplayer(a: Player, b: Player)
 			waitFor(function()
 				return d.session ~= nil and d.session.result ~= nil and d.session.result.reason == "InfiltratorsLeft"
 			end, 3)
+		)
+		local zonesAfter, trapsAfter = AbilityService.CountRuntime()
+		check(
+			"cleanup: live zone and trap destroyed at resolution",
+			zonesAfter == 0 and trapsAfter == 0 and #WorldService.GetRuntimeFolder():GetChildren() == 0,
+			{ zones = zonesAfter, traps = trapsAfter, runtime = #WorldService.GetRuntimeFolder():GetChildren() }
 		)
 		check(
 			"disconnect: departed player recorded as disconnected (ineligible for rewards)",
@@ -1177,8 +1247,257 @@ local function runMultiplayer(a: Player, b: Player)
 	end
 end
 
+-- 3-5 players: one Keeper, simultaneous hacks, one-terminal-per-hacker, teammate resume, a mid-match
+-- disconnect that does not end the match, a full extraction win with consistent rewards, Keeper
+-- rotation in the next match, and the Keeper leaving.
+local function runSquad(players: { Player })
+	local d = MatchService.GetDirector()
+	local RewardCalculator = req({ "Core", "RewardCalculator" })
+	local n = #players
+	for _, p in players do
+		local r = client(p, "fire", { remote = "QueueRequest", args = { "Join" } })
+		check(`squad: {p.Name} queued`, r and r[1] and r[1].ok == true, codes(r))
+	end
+	check(
+		`squad: {n}-player match active`,
+		waitFor(function()
+			return d:getPhase() == "Active"
+		end, 45),
+		d:getPhase()
+	)
+	local keeper: Player? = nil
+	local infiltrators: { Player } = {}
+	local keepers = 0
+	for _, p in players do
+		local role = d:getRole(p.UserId)
+		if role == "TimeKeeper" then
+			keepers += 1
+			keeper = p
+		elseif role == "Infiltrator" then
+			table.insert(infiltrators, p)
+		end
+	end
+	check(
+		"squad: exactly one Keeper, everyone else an Infiltrator",
+		keepers == 1 and #infiltrators == n - 1,
+		{ keepers = keepers, infiltrators = #infiltrators }
+	)
+	if keeper == nil or #infiltrators < 2 then
+		return
+	end
+	local mismatched = {}
+	for _, p in players do
+		local snap = client(p, "snapshot")
+		if not snap or snap.role ~= d:getRole(p.UserId) or snap.ui_Hud ~= true then
+			table.insert(mismatched, p.Name)
+		end
+	end
+	check("squad: every client mirrors its own role and shows the HUD", #mismatched == 0, mismatched)
+	local matchId = (d.session :: any).matchId
+	local a, b = infiltrators[1], infiltrators[2]
+
+	-- Simultaneous hacks on two terminals.
+	moveToTerminal(a, "ArchiveTerminal")
+	moveToTerminal(b, "ReactorTerminal")
+	local pressedA, pressedB = nil, nil
+	task.spawn(function()
+		pressedA = client(a, "prompt", { terminal = "Terminal_ArchiveTerminal" })
+	end)
+	pressedB = client(b, "prompt", { terminal = "Terminal_ReactorTerminal" })
+	check(
+		"squad: two terminals hacked simultaneously",
+		waitFor(function()
+			return terminalState("ArchiveTerminal") == "Hacking" and terminalState("ReactorTerminal") == "Hacking"
+		end, 3),
+		{
+			a = pressedA,
+			b = pressedB,
+			archive = terminalState("ArchiveTerminal"),
+			reactor = terminalState("ReactorTerminal"),
+		}
+	)
+	local okSecond, codeSecond = MatchService.RequestHack(b, "ArchiveTerminal")
+	check(
+		"squad: one terminal per hacker (AlreadyHacking)",
+		not okSecond and codeSecond == "AlreadyHacking",
+		codeSecond
+	)
+	if infiltrators[3] then
+		moveToTerminal(infiltrators[3], "ArchiveTerminal")
+		local okBusy, codeBusy = MatchService.RequestHack(infiltrators[3], "ArchiveTerminal")
+		check("squad: one hacker per terminal (Busy)", not okBusy and codeBusy == "Busy", codeBusy)
+	end
+
+	-- A walks away mid-hack; progress is retained for a teammate.
+	task.wait(5)
+	moveTo(a, MapLayout.Vault.extractionCenter)
+	check(
+		"squad: walking away interrupts with progress retained",
+		waitFor(function()
+			local t = d:publicTerminal("ArchiveTerminal")
+			return t ~= nil and t.state ~= "Hacking" and t.progress > 0.2
+		end, 2),
+		d:publicTerminal("ArchiveTerminal")
+	)
+
+	-- A starts Observatory, then disconnects mid-hack; the match must continue.
+	task.wait(1.6)
+	moveToTerminal(a, "ObservatoryTerminal")
+	client(a, "prompt", { terminal = "Terminal_ObservatoryTerminal" })
+	waitFor(function()
+		return terminalState("ObservatoryTerminal") == "Hacking"
+	end, 3)
+	task.wait(2)
+	local leaverId = a.UserId
+	a:Kick("E2E squad disconnect test")
+	check(
+		"squad: disconnect interrupts the leaver's hack",
+		waitFor(function()
+			return terminalState("ObservatoryTerminal") ~= "Hacking"
+		end, 3),
+		terminalState("ObservatoryTerminal")
+	)
+	check("squad: match continues after one Infiltrator leaves", waitFor(function()
+		local p = d:getParticipant(leaverId)
+		return p ~= nil and p.status == "Disconnected"
+	end, 3) and d:getPhase() == "Active", d:getPhase())
+
+	-- B finishes Reactor, then resumes Archive and Observatory from the retained progress.
+	check(
+		"squad: Reactor completes",
+		waitFor(function()
+			return terminalState("ReactorTerminal") == "Completed"
+		end, 20),
+		terminalState("ReactorTerminal")
+	)
+	for _, id in { "ArchiveTerminal", "ObservatoryTerminal" } do
+		local before = (d:publicTerminal(id) :: any).progress
+		waitFor(function()
+			return terminalState(id) == "Available"
+		end, 3)
+		moveToTerminal(b, id)
+		client(b, "prompt", { terminal = `Terminal_{id}` })
+		check(`squad: teammate resumes {id} from {math.floor(before * 100)}%`, before > 0 and waitFor(function()
+			local t = d:publicTerminal(id)
+			return t ~= nil and t.state == "Hacking" and t.hackerUserId == b.UserId
+		end, 3), d:publicTerminal(id))
+		check(
+			`squad: {id} completes`,
+			waitFor(function()
+				return terminalState(id) == "Completed"
+			end, 20),
+			terminalState(id)
+		)
+	end
+	check(
+		"squad: extraction opens",
+		waitFor(function()
+			return d:getPhase() == "Extraction"
+		end, 2),
+		d:getPhase()
+	)
+	local scrapBefore: { [number]: number } = {}
+	for _, p in Players:GetPlayers() do
+		scrapBefore[p.UserId] = (PlayerDataService.GetProfile(p) :: any).ChronosScrap
+	end
+	local others = {}
+	for i = 3, #infiltrators do
+		table.insert(others, infiltrators[i])
+	end
+	moveTo(b, MapLayout.Vault.extractionCenter)
+	for _, p in others do
+		moveTo(p, MapLayout.Vault.extractionCenter)
+	end
+	check(
+		"squad: Infiltrators win by extraction",
+		waitFor(function()
+			local r = d.session and d.session.result
+			return r ~= nil and r.reason == "Extracted" and r.winner == "Infiltrators"
+		end, 10),
+		d.session and d.session.result and d.session.result.reason
+	)
+	local result = (d.session :: any).result
+	check(
+		"squad: leaver recorded as disconnected and ineligible",
+		result.participants[leaverId].connected == false
+			and RewardCalculator.compute(result, result.participants[leaverId]).eligible == false
+	)
+	local inconsistent = {}
+	for _, p in Players:GetPlayers() do
+		local expected = RewardCalculator.compute(result, result.participants[p.UserId]).total
+		local snap: any = nil
+		local ok = waitFor(function()
+			snap = client(p, "snapshot")
+			local profile = PlayerDataService.GetProfile(p) :: any
+			return snap ~= nil
+				and snap.result ~= nil
+				and snap.result.matchId == matchId
+				and snap.result.total == expected
+				and profile.ChronosScrap == scrapBefore[p.UserId] + expected
+		end, 6)
+		if not ok then
+			table.insert(inconsistent, { name = p.Name, expected = expected, got = snap and snap.result })
+		end
+	end
+	check("squad: every remaining client got one consistent, paid result", #inconsistent == 0, inconsistent)
+	check(
+		"squad: lifecycle returns to WaitingForPlayers",
+		waitFor(function()
+			return d:getPhase() == "WaitingForPlayers" and d.session == nil
+		end, 30),
+		d:getPhase()
+	)
+
+	-- Next match: the Keeper rotates to someone who has not held the role yet.
+	local previousKeeper = keeper
+	for _, p in Players:GetPlayers() do
+		client(p, "fire", { remote = "QueueRequest", args = { "Join" } })
+	end
+	check(
+		"squad: match 2 active",
+		waitFor(function()
+			return d:getPhase() == "Active"
+		end, 45),
+		d:getPhase()
+	)
+	local newKeeper: Player? = nil
+	for _, p in Players:GetPlayers() do
+		if d:getRole(p.UserId) == "TimeKeeper" then
+			newKeeper = p
+		end
+	end
+	check(
+		"squad: Keeper rotated away from the previous Keeper",
+		newKeeper ~= nil and newKeeper ~= previousKeeper,
+		newKeeper and newKeeper.Name
+	)
+	if newKeeper then
+		newKeeper:Kick("E2E squad keeper-leave test")
+		check(
+			"squad: Keeper leaving gives the Infiltrators the win",
+			waitFor(function()
+				local r = d.session and d.session.result
+				return r ~= nil and r.reason == "KeeperLeft" and r.winner == "Infiltrators"
+			end, 3),
+			d.session and d.session.result and d.session.result.reason
+		)
+	end
+	check(
+		"squad: lifecycle recovers to WaitingForPlayers",
+		waitFor(function()
+			return d:getPhase() == "WaitingForPlayers" and d.session == nil
+		end, 30),
+		d:getPhase()
+	)
+	check(
+		"squad: no lingering status effects",
+		StatusEffectService.CountEffects() == 0,
+		StatusEffectService.CountEffects()
+	)
+end
+
 task.spawn(function()
-	print("[E2E] driver waiting for players (Studio Play: 1 player = solo suite, 2 players = multiplayer suite)")
+	print("[E2E] driver waiting for players (1 player = solo suite, 2 = multiplayer, 3-5 = squad)")
 	local ready = waitFor(function()
 		local ok = pcall(function()
 			return MatchService.GetDirector()
@@ -1189,12 +1508,19 @@ task.spawn(function()
 		warn("[E2E] SKIPPED: no player joined")
 		return
 	end
-	-- Give a second Studio test client time to join before choosing the suite.
+	-- Give the other Studio test clients time to join (and say hello) before choosing the suite.
 	waitFor(function()
 		return #helloPlayers >= 2
 	end, 8)
+	waitFor(function()
+		return #helloPlayers >= #Players:GetPlayers()
+	end, 15)
 	task.wait(2) -- let ClientReady/state sync settle
-	local mode = if #helloPlayers >= 2 and #Players:GetPlayers() == 2 then "multiplayer" else "solo"
+	local count = #Players:GetPlayers()
+	local mode = if count >= 3 and #helloPlayers >= 3
+		then "squad"
+		elseif count == 2 and #helloPlayers >= 2 then "multiplayer"
+		else "solo"
 	-- Precondition: every player idle in the lobby. Manual input (e.g. clicking Join Queue) during
 	-- the run invalidates the suite, so abort clearly instead of reporting misleading failures.
 	local director = MatchService.GetDirector()
@@ -1217,6 +1543,16 @@ task.spawn(function()
 		ok, err = Safe.call(runMatchTwo, player)
 		if not ok then
 			check("match 2 completed without driver errors", false, err)
+		end
+	elseif mode == "squad" then
+		for _, p in helloPlayers do
+			waitFor(function()
+				return p.Character ~= nil
+			end, 10)
+		end
+		local ok, err = Safe.call(runSquad, table.clone(helloPlayers))
+		if not ok then
+			check("squad suite completed without driver errors", false, err)
 		end
 	else
 		for _, p in helloPlayers do

@@ -63,4 +63,7 @@ attribute) and `StarterPlayerScripts.E2EClient`. Open `build/test.rbxl` in Studi
 - **Solo:** press F5 and do not interact (two full matches, ~2.5 min).
 - **Multiplayer:** Test → Clients and Servers → 2 players → Start (~4 min; one client is kicked
   at the end on purpose).
-The summary prints as `[E2E] <mode>: N passed, M failed`.
+- **Squad:** same with 3–5 players (~3 min; one Infiltrator and later the Keeper are kicked on purpose).
+The summary prints as `[E2E] <mode>: N passed, M failed` and is stored in the ReplicatedStorage
+attribute `E2ESummary`. Logs of finished sessions are also in `~/Library/Logs/Roblox/*_last.log`.
+To push local edits into an open Studio without Rojo, use `tools/studio-sync.py` (see tools/README.md).

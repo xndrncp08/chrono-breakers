@@ -32,6 +32,7 @@ type Session = {
 	state: SessionState,
 	dirty: boolean,
 	saving: boolean,
+	lastSavedAt: number,
 }
 
 local PlayerDataService = {}
@@ -127,8 +128,17 @@ local function saveSession(player: Player, release: boolean)
 	if not session or not store or session.state ~= "Loaded" then
 		return
 	end
-	if session.saving and not release then
-		return
+	if session.saving then
+		if not release then
+			return
+		end
+		-- Serialise the leave/shutdown save behind an in-flight autosave so the release lands last.
+		while session.saving do
+			task.wait(0.1)
+		end
+		if session.state ~= "Loaded" then
+			return
+		end
 	end
 	session.saving = true
 	session.dirty = false
@@ -142,8 +152,11 @@ local function saveSession(player: Player, release: boolean)
 			session.state = "Unsaved"
 		end
 	end
-	if release and status == "Saved" then
-		session.state = "Released"
+	if status == "Saved" then
+		session.lastSavedAt = os.clock()
+		if release then
+			session.state = "Released"
+		end
 	end
 end
 
@@ -153,6 +166,7 @@ local function loadProfile(player: Player)
 		state = "Loading",
 		dirty = false,
 		saving = false,
+		lastSavedAt = os.clock(),
 	}
 	sessions[player] = session
 	PlayerDataService.SendSnapshot(player)
@@ -214,7 +228,9 @@ function PlayerDataService.Start()
 		while true do
 			task.wait(config.AutosaveInterval)
 			for player, session in sessions do
-				if session.dirty and session.state == "Loaded" then
+				-- Clean sessions still save occasionally to refresh the session lock before it goes stale.
+				local lockAging = os.clock() - session.lastSavedAt > config.LockTimeout / 2
+				if (session.dirty or lockAging) and session.state == "Loaded" then
 					task.spawn(saveSession, player, false)
 				end
 			end

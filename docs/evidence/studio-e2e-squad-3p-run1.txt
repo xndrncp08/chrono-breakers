@@ -1,0 +1,32 @@
+# Studio E2E squad run 1 — 2026-10-09 (Test > Clients and Servers, 3 players)
+# Captured via Roblox Studio MCP run_luau peer=server (LogService history); no error entries.
+# The "one hacker per terminal (Busy)" check needs a third Infiltrator (4+ players) and was not run.
+[E2E] driver waiting for players (1 player = solo suite, 2 = multiplayer, 3-5 = squad)
+[E2E] starting squad suite with 3 player(s)
+[E2E] PASS squad: Player1 queued
+[E2E] PASS squad: Player2 queued
+[E2E] PASS squad: Player3 queued
+[E2E] PASS squad: 3-player match active
+[E2E] PASS squad: exactly one Keeper, everyone else an Infiltrator
+[E2E] PASS squad: every client mirrors its own role and shows the HUD
+[E2E] PASS squad: two terminals hacked simultaneously
+[E2E] PASS squad: one terminal per hacker (AlreadyHacking)
+[E2E] PASS squad: walking away interrupts with progress retained
+[E2E] PASS squad: disconnect interrupts the leaver's hack
+[E2E] PASS squad: match continues after one Infiltrator leaves
+[E2E] PASS squad: Reactor completes
+[E2E] PASS squad: teammate resumes ArchiveTerminal from 33%
+[E2E] PASS squad: ArchiveTerminal completes
+[E2E] PASS squad: teammate resumes ObservatoryTerminal from 20%
+[E2E] PASS squad: ObservatoryTerminal completes
+[E2E] PASS squad: extraction opens
+[E2E] PASS squad: Infiltrators win by extraction
+[E2E] PASS squad: leaver recorded as disconnected and ineligible
+[E2E] PASS squad: every remaining client got one consistent, paid result
+[E2E] PASS squad: lifecycle returns to WaitingForPlayers
+[E2E] PASS squad: match 2 active
+[E2E] PASS squad: Keeper rotated away from the previous Keeper
+[E2E] PASS squad: Keeper leaving gives the Infiltrators the win
+[E2E] PASS squad: lifecycle recovers to WaitingForPlayers
+[E2E] PASS squad: no lingering status effects
+[E2E] squad: 26 passed, 0 failed

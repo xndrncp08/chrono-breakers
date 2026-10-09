@@ -11,10 +11,11 @@ service/controller architecture with a pure, offline-tested gameplay core.
 
 | Area | State |
 | --- | --- |
-| Match flow, roles, terminals, extraction, results | Implemented; Lune tests + **verified in Roblox Studio** (solo 104/104, 2-player 69/69 E2E) |
+| Match flow, roles, terminals, extraction, results | Implemented; Lune tests + **verified in Roblox Studio** (solo 110/110, 2-player 72/72, 3-player 26/26 E2E) |
 | Time-Keeper kit + Infiltrator gadgets | Implemented; exercised through real remotes in a 2-player Studio session |
 | Persistence, shop/loadout, rewards | Implemented; shop/rewards verified in Studio with the in-memory store. **Real DataStores not yet verified** (needs a published test experience) |
-| Client UI (lobby, HUD, reveal, results, loadout, settings) | Implemented; screen visibility/state verified in Studio. **Visual layout, touch and gamepad not yet reviewed** |
+| Client UI (lobby, HUD, reveal, results, loadout, settings) | Implemented; screen state and layout lint verified in Studio, two overlap defects fixed. **Touch, gamepad and a player-perspective map review not yet done** |
+| Release readiness | [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md): controlled test release yes, broad release not yet |
 | Studio validation details | [docs/TEST_PLAN.md](docs/TEST_PLAN.md), raw logs in [docs/evidence/](docs/evidence/) |
 
 ## Requirements
