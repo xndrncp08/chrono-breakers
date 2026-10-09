@@ -12,13 +12,22 @@
 				"$path": "src/Server"
 			},
 			"Tests": {
-				"$path": "src/Tests"
+				"$path": "src/Tests",
+				"$attributes": {
+					"RunE2E": true
+				}
+			},
+			"$properties": {
+				"LoadStringEnabled": true
 			}
 		},
 		"StarterPlayer": {
 			"StarterPlayerScripts": {
 				"Client": {
 					"$path": "src/Client"
+				},
+				"E2EClient": {
+					"$path": "src/TestClient"
 				}
 			},
 			"StarterCharacterScripts": {

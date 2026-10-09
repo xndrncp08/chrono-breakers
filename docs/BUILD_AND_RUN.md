@@ -28,3 +28,39 @@ generated and git-ignored.
 Not performed. To publish: open the built place in Studio → File → Publish to Roblox, configure
 the experience (max players ≥ 5 recommended), then follow RELEASE_CHECKLIST.md. Do not publish
 without verifying the Studio scenarios in TEST_PLAN.md.
+
+## Roblox Studio MCP
+
+Studio validation uses **Meganugger's Roblox Studio MCP**
+(<https://github.com/Meganugger/roblox-studio-mcp>, v4.0.0).
+
+### Why the first attempt timed out
+The project was originally registered with a different server (npm `robloxstudio-mcp`). That server
+was running (`/health` → `"pluginConnected": false, "instanceCount": 0`), but **no Studio plugin was
+ever installed** (`~/Documents/Roblox/Plugins` did not exist), so nothing in Studio ever connected.
+
+### Setup (as performed 2026-10-09, macOS)
+```bash
+git clone https://github.com/Meganugger/roblox-studio-mcp.git ~/tools/roblox-studio-mcp
+cd ~/tools/roblox-studio-mcp && npm install && npm run build && npm test   # 214 passed, 8 skipped
+node server/dist/index.js --install-plugin      # -> ~/Documents/Roblox/Plugins/RobloxStudioMCP.rbxmx
+# register with your MCP client as server "roblox-studio": node ~/tools/roblox-studio-mcp/server/dist/index.js
+```
+Then **restart Studio** (plugins load at startup), open a place, click **Plugins → MCP**, paste the
+token from `~/.roblox-studio-mcp/token`, and press **Connect**. The token is saved; later sessions
+(including Play sessions) reconnect automatically.
+
+Notes:
+- One MCP server per Studio session; the bridge listens on `127.0.0.1:3667`.
+- `start_play_solo` presses F5 via macOS automation: grant **Accessibility** to the app running
+  the server (here: Visual Studio Code). `capture_studio_screenshot` needs **Screen Recording**.
+- Runtime evaluation on the play server needs `LoadStringEnabled`; it is set **only** in
+  `test.project.json`. Never enable it in `default.project.json`.
+
+## In-engine E2E suites
+`test.project.json` adds `ServerScriptService.Tests.E2E.E2EDriver` (enabled by the `RunE2E`
+attribute) and `StarterPlayerScripts.E2EClient`. Open `build/test.rbxl` in Studio, then:
+- **Solo:** press F5 and do not interact (two full matches, ~2.5 min).
+- **Multiplayer:** Test → Clients and Servers → 2 players → Start (~4 min; one client is kicked
+  at the end on purpose).
+The summary prints as `[E2E] <mode>: N passed, M failed`.

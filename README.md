@@ -11,11 +11,11 @@ service/controller architecture with a pure, offline-tested gameplay core.
 
 | Area | State |
 | --- | --- |
-| Match flow, roles, terminals, extraction, results | Implemented; core rules covered by automated tests |
-| Time-Keeper kit + Infiltrator gadgets | Implemented; validation/cooldowns/status effects tested |
-| Persistence, shop/loadout, rewards | Implemented; session locking + idempotency tested against an in-memory store |
-| Client UI (lobby, HUD, reveal, results, loadout, settings) | Implemented; type-checked, **not yet visually verified in Studio** |
-| Live Roblox playtest / DataStore against real servers | **Not run** — see [docs/TEST_PLAN.md](docs/TEST_PLAN.md) |
+| Match flow, roles, terminals, extraction, results | Implemented; Lune tests + **verified in Roblox Studio** (solo 102/102, 2-player 69/69 E2E) |
+| Time-Keeper kit + Infiltrator gadgets | Implemented; exercised through real remotes in a 2-player Studio session |
+| Persistence, shop/loadout, rewards | Implemented; shop/rewards verified in Studio with the in-memory store. **Real DataStores not yet verified** (needs a published test experience) |
+| Client UI (lobby, HUD, reveal, results, loadout, settings) | Implemented; screen visibility/state verified in Studio. **Visual layout, touch and gamepad not yet reviewed** |
+| Studio validation details | [docs/TEST_PLAN.md](docs/TEST_PLAN.md), raw logs in [docs/evidence/](docs/evidence/) |
 
 ## Requirements
 
