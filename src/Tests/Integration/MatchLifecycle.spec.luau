@@ -88,6 +88,38 @@ return function(t: any)
 			t.expect(result.reason).toBe("TimeExpired")
 		end)
 
+		-- Drives the last hack so it would finish `overrun` seconds after the deadline, then delivers
+		-- one (possibly late) tick at `tickAt` seconds after the deadline.
+		local function finalHackAroundDeadline(overrun: number, tickAt: number)
+			local h = Harness.new({ matchDuration = 60 })
+			h:startMatch({ 1, 2 })
+			local a = h:infiltrators()[1]
+			h:hack(a, "T1")
+			h:hack(a, "T2")
+			local deadline = (h.director.session :: any).deadline
+			local startAt = deadline + overrun - h.director.config.hackDuration
+			h:advance(startAt - h.now)
+			h:placeAt(a, "T3")
+			t.expect((h.director:requestHackStart(a, "T3", h.now))).toBe(true)
+			h:advance(deadline - 0.2 - h.now)
+			h.now = deadline + tickAt
+			h.director:tick(h.now)
+			return h
+		end
+
+		t.it("does not count hack progress earned after the timer expired (late tick)", function()
+			local h = finalHackAroundDeadline(0.5, 1)
+			t.expect(h:count("ExtractionOpened")).toBe(0)
+			t.expect(h:last("MatchResolved").reason).toBe("TimeExpired")
+		end)
+
+		t.it("opens extraction when the final hack completes exactly at the deadline", function()
+			local h = finalHackAroundDeadline(0, 0)
+			t.expect(h:count("ExtractionOpened")).toBe(1)
+			t.expect(h.director:getPhase()).toBe("Extraction")
+			t.expect(h:count("MatchResolved")).toBe(0)
+		end)
+
 		t.it("awards the Keeper a win when all Infiltrators are eliminated", function()
 			local h = Harness.new()
 			h:startMatch({ 1, 2, 3 })

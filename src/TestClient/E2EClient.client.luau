@@ -56,6 +56,51 @@ local function texts(frame: Instance, root: Instance, limit: number): { string }
 	return list
 end
 
+-- Layout lint for what is currently on screen: text that does not fit its box (and is not
+-- deliberately truncated/scaled) and visible elements that spill outside the ScreenGui.
+local function lintLayout(gui: ScreenGui): { string }
+	local issues = {}
+	local origin, size = gui.AbsolutePosition, gui.AbsoluteSize
+	local function inScroller(d: Instance): boolean
+		local node = d.Parent
+		while node and node ~= gui do
+			if node:IsA("ScrollingFrame") then
+				return true
+			end
+			node = node.Parent
+		end
+		return false
+	end
+	for _, d in gui:GetDescendants() do
+		if #issues >= 15 then
+			break
+		end
+		if d:IsA("GuiObject") and isShown(d, gui) and d.AbsoluteSize.X > 0 and d.AbsoluteSize.Y > 0 then
+			local name = d:GetFullName():gsub("^.-ChronoUI%.", "")
+			if
+				(d:IsA("TextLabel") or d:IsA("TextButton"))
+				and d.Text ~= ""
+				and not d.TextScaled
+				and d.TextTruncate == Enum.TextTruncate.None
+				and not d.TextFits
+			then
+				table.insert(issues, `clipped text: {name} "{string.sub(d.Text, 1, 40)}"`)
+			end
+			local rel = d.AbsolutePosition - origin
+			local far = rel + d.AbsoluteSize
+			if not inScroller(d) and (rel.X < -1 or rel.Y < -1 or far.X > size.X + 1 or far.Y > size.Y + 1) then
+				table.insert(
+					issues,
+					`offscreen: {name} at {math.floor(rel.X)},{math.floor(rel.Y)} size {math.floor(d.AbsoluteSize.X)}x{math.floor(
+						d.AbsoluteSize.Y
+					)}`
+				)
+			end
+		end
+	end
+	return issues
+end
+
 local function snapshot(): { [string]: any }
 	local gui = player.PlayerGui:FindFirstChild("ChronoUI")
 	local out: { [string]: any } = {
@@ -105,6 +150,8 @@ local function snapshot(): { [string]: any }
 		out.abilityReadyAt[id] = state.readyAt
 	end
 	if gui then
+		out.layoutIssues = lintLayout(gui :: ScreenGui)
+		out.viewport = `{math.floor((gui :: ScreenGui).AbsoluteSize.X)}x{math.floor((gui :: ScreenGui).AbsoluteSize.Y)}`
 		out.uiScale = (gui:FindFirstChildOfClass("UIScale") :: UIScale?)
 			and (gui:FindFirstChildOfClass("UIScale") :: UIScale).Scale
 		for _, name in { "ConnectionOverlay", "Lobby", "Hud", "RoleReveal", "Results", "Loadout", "Settings" } do
@@ -198,6 +245,22 @@ channel.OnClientEvent:Connect(function(message: any)
 			return collected
 		elseif cmd == "prompt" then
 			return pressPrompt(args.terminal)
+		elseif cmd == "camera" then
+			-- Visual review only: frame a shot from the server (e.g. via the Studio MCP plugin).
+			local cam = workspace.CurrentCamera
+			if args.reset then
+				cam.CameraType = Enum.CameraType.Custom
+			else
+				cam.CameraType = Enum.CameraType.Scriptable
+				cam.CFrame = CFrame.lookAt(args.from, args.at)
+			end
+			return "ok"
+		elseif cmd == "ui" then
+			local gui = player.PlayerGui:FindFirstChild("ChronoUI") :: ScreenGui?
+			if gui then
+				gui.Enabled = args.enabled == true
+			end
+			return "ok"
 		end
 		return "unknown command"
 	end)

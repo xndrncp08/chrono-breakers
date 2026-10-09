@@ -42,19 +42,20 @@ Status 2026-10-09: full server+client implemented; 133 Lune tests green; analyze
 - [x] Input (KBM/touch/gamepad), camera, effects, audio, interaction
 
 ## Phase 7–8 — Validation & docs
-- [x] Unit + integration tests passing under Lune (145)
+- [x] Unit + integration tests passing under Lune (148)
 - [x] stylua --check, selene, luau-lsp analyze clean
 - [x] rojo build succeeds
-- [x] Studio validation via MCP: engine boot + 145 in-engine tests; solo E2E 104/104; 2-player E2E 69/69
+- [x] Studio validation via MCP: engine boot + 145 in-engine tests; solo E2E 110/110; 2-player E2E 72/72; 3-player squad E2E 26/26
 - [x] Fixed (found in Studio): boot guard persisted into place (`33928e7`); CharacterAdded parenting (`a11e89f`)
 - [ ] BLOCKED: real DataStore verification (needs a published test experience with API access)
 - [x] Fixed (found by screenshot): results modal lingering into the next match under the objective banner; PlayerList over the squad panel
-- [ ] Remaining visual review (HUD, map, other screens), touch + gamepad (window automation still fails: System Events lists no Studio windows)
+- [x] Hardening pass: deadline race, float drift at completion, profile re-lock after leave, idle lock refresh (TEST_PLAN defect log)
+- [x] Squad E2E suite (3–5 players), layout lint, `tools/studio-sync.py`; [RELEASE_READINESS.md](RELEASE_READINESS.md)
+- [ ] Player-perspective map review, touch + gamepad (window automation still fails: System Events lists no Studio windows)
+- [ ] 4–5 player session
 - [x] Docs: README, GAME_DESIGN, ARCHITECTURE, NETWORK_CONTRACT, DATA_SCHEMA, TEST_PLAN, BALANCE, BUILD_AND_RUN, RELEASE_CHECKLIST
 
 ## Next actions (if resuming)
-1. Grant VS Code Screen Recording + Accessibility (restart VS Code), then capture screenshots of
-   lobby/HUD/results and run Device Emulator (phone, gamepad) checks; record in TEST_PLAN.md.
-2. Publish a separate *test* experience, enable Studio API access, and verify DataStore
-   load/save/session-lock across two servers.
-3. Run a 3–5 player Clients-and-Servers session.
+Follow the open-issue table in [RELEASE_READINESS.md](RELEASE_READINESS.md): DataStore round trip in a
+separate test experience, Device Emulator + gamepad pass, player-perspective map review, a 4–5
+player session.
