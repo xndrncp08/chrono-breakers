@@ -59,11 +59,27 @@ local function applyTrail(player: Player, character: Model)
 	trail.Parent = root
 end
 
+-- CharacterAdded fires before the character is parented to Workspace (verified in Studio via MCP:
+-- Parent is nil at the event, Workspace one frame later). Wait for parenting, but give up if the
+-- character was replaced or removed in the meantime.
+local PARENT_TIMEOUT = 10
+
+local function waitForParenting(player: Player, character: Model): boolean
+	local deadline = os.clock() + PARENT_TIMEOUT
+	while not character:IsDescendantOf(workspace) do
+		if player.Character ~= character or os.clock() > deadline then
+			return false
+		end
+		task.wait()
+	end
+	return true
+end
+
 local function onCharacterAdded(player: Player, character: Model)
 	disconnectCharacter(player)
 	local humanoid = character:WaitForChild("Humanoid", 10) :: Humanoid?
 	local root = character:WaitForChild("HumanoidRootPart", 10) :: BasePart?
-	if not humanoid or not root or character.Parent == nil then
+	if not humanoid or not root or not waitForParenting(player, character) then
 		return
 	end
 
