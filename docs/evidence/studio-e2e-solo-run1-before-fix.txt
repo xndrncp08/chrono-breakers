@@ -1,0 +1,107 @@
+# Studio E2E run 1 — 2026-10-09, BEFORE fix/character-added-parenting (89 passed, 13 failed)
+# Captured via Roblox Studio MCP (Meganugger) get_output_logs peer=server
+[E2E] starting with no_juan08
+[E2E] PASS lobby: character spawned
+[E2E] PASS lobby: spawned in the lobby area
+[E2E] PASS lobby: baseline walk speed 16
+[E2E] PASS lobby: default Health regen script replaced
+[E2E] PASS client: connected and booted
+[E2E] PASS client: lobby visible, HUD hidden
+[E2E] PASS client: connection overlay hidden
+[E2E] PASS client: profile snapshot received
+[E2E] PASS queue: unknown action rejected InvalidPayload
+[E2E] PASS queue: join accepted
+[E2E] PASS queue: duplicate join rejected AlreadyQueued
+[E2E] PASS client: queue state shows queued
+[E2E] PASS match: intermission started
+[E2E] PASS match: intro started
+[E2E] PASS match: player is an Infiltrator (solo, keeperless)
+[E2E] FAIL match: respawned at an Infiltrator spawn :: 0, 3.3984375, 332
+[E2E] FAIL match: held in place during intro :: 16
+[E2E] FAIL client: role reveal visible during intro :: false
+[E2E] PASS client: role received as Infiltrator
+[E2E] PASS match: active phase
+[E2E] PASS match: movement restored to 16 after intro
+[E2E] PASS match: spawn protection active
+[E2E] PASS world: terminals available with prompts enabled
+[E2E] PASS client: HUD visible, lobby hidden
+[E2E] PASS client: role reveal dismissed
+[E2E] PASS client: one gadget slot in the ability bar
+[E2E] PASS authority: Infiltrator cannot use Chrono Strike (WrongRole)
+[E2E] PASS authority: NaN target rejected (InvalidPayload)
+[E2E] PASS authority: extra arguments rejected (InvalidPayload)
+[E2E] PASS authority: unequipped gadget rejected (NotOwned)
+[E2E] PASS authority: shop locked during a live match (InMatch)
+[E2E] PASS authority: hack from spawn rejected OutOfRange (server-measured)
+[E2E] PASS authority: forged terminal id rejected
+[E2E] PASS gadget: Stabilizer accepted
+[E2E] PASS gadget: slow immunity applied
+[E2E] PASS gadget: immediate re-use rejected OnCooldown
+[E2E] PASS client: ability cooldown mirrored
+[Security] user 11778077490: 10 violations in 60s (IllegalAbility=1, InvalidPayload=3, RateLimited=6); last=AbilityRequest
+[E2E] PASS security: request burst is rate limited
+[E2E] PASS freeze: telegraph does not slow immediately
+[E2E] PASS freeze: 70% slow applied from baseline (4.8)
+[E2E] PASS freeze: overlapping zones do not stack; slow persists after one expires
+[E2E] PASS client: slowed status mirrored
+[E2E] PASS freeze: speed restored to exactly 16 after all zones end
+[E2E] FAIL hack: prompt pressed :: pressed-disabled
+[E2E] PASS hack: server started Archive hack
+[E2E] PASS client: hack panel visible while hacking
+[E2E] PASS hack: leaving range interrupts
+[E2E] PASS hack: progress retained after interruption (~33%)
+[E2E] PASS hack: terminal re-available after lockout
+[E2E] PASS trap: triggers on the Infiltrator
+[E2E] PASS trap: stun sets speed 0
+[E2E] PASS trap: stun interrupts hacking (Restrained)
+[E2E] PASS trap: after stun, 40% slow (9.6)
+[E2E] PASS trap: speed restored to 16
+[E2E] PASS placement: open floor accepted
+[E2E] PASS placement: behind the Chrono Core rejected (NoLineOfSight)
+[E2E] PASS placement: through a partition wall rejected
+[E2E] PASS placement: outside the vault rejected
+[E2E] PASS placement: mid-air rejected
+[E2E] PASS placement: beyond cast range rejected
+[E2E] PASS hack: Archive resumable after interruptions
+[E2E] FAIL Archive: prompt pressed via ProximityPrompt :: pressed-disabled
+[E2E] PASS Archive: server started the hack
+[E2E] PASS Archive: terminal completes after ~15 s
+[E2E] FAIL Reactor: prompt pressed via ProximityPrompt :: pressed-disabled
+[E2E] PASS Reactor: server started the hack
+[E2E] PASS Reactor: terminal completes after ~15 s
+[E2E] FAIL Observatory: prompt pressed via ProximityPrompt :: pressed-disabled
+[E2E] PASS Observatory: server started the hack
+[E2E] PASS Observatory: terminal completes after ~15 s
+[E2E] PASS extraction: phase entered after 3 hacks
+[E2E] PASS extraction: gate opened (non-colliding)
+[E2E] PASS client: extraction visible in HUD
+[E2E] PASS extraction: player extracted after channel
+[E2E] PASS result: match resolved
+[E2E] PASS result: Infiltrators win by extraction
+[E2E] PASS client: results screen visible
+[E2E] PASS client: victory with reward breakdown
+[E2E] PASS rewards: payout = 155
+[E2E] PASS rewards: profile credited exactly once
+[E2E] PASS rewards: duplicate resolution does not pay twice
+[E2E] PASS lifecycle: back to WaitingForPlayers
+[E2E] PASS lifecycle: session cleared
+[E2E] PASS lifecycle: stale match id rejected
+[E2E] PASS cleanup: runtime folder empty
+[E2E] PASS cleanup: no zones/traps tracked
+[E2E] PASS cleanup: terminals reset to Locked
+[E2E] PASS cleanup: gate closed again
+[E2E] PASS lifecycle: player back in the lobby
+[E2E] PASS client: lobby shown again after the match
+[E2E] PASS client: currency updated in UI state
+[E2E] PASS match 2: re-queue accepted
+[E2E] PASS match 2: active
+[E2E] PASS match 2: new match id
+[E2E] FAIL match 2: death eliminates the Infiltrator :: nil
+[E2E] FAIL match 2: resolves AllEliminated :: nil
+[E2E] FAIL match 2: defeat result received by client :: table: 0x11c296e5802ba9ba
+[E2E] FAIL match 2: defeat pays participation only (20) :: table: 0x11c296e5802ba9ba
+[E2E] FAIL match 2: profile credited +20 separately :: nil
+[E2E] PASS match 2: eliminated player respawns in the lobby
+[E2E] FAIL match 2: lifecycle completes :: Active
+[E2E] PASS match 2: no lingering status effects
+[E2E] 89 passed, 13 failed

@@ -4,15 +4,14 @@
 --   2. Init(registry) in dependency order — creates remotes, builds/validates the world, wires
 --      dependencies. Any failure here is fatal and reported loudly; gameplay never starts half-built.
 --   3. Start() in the same order — connects events and starts loops.
--- A guard prevents double initialisation if this script is ever duplicated.
+-- BootGuard (module state, not an Instance attribute) prevents double initialisation.
 
-local ServerScriptService = game:GetService("ServerScriptService")
+local BootGuard = require(script.Parent.BootGuard)
 
-if ServerScriptService:GetAttribute("ChronoBreakersServerBooted") then
+if not BootGuard.claim() then
 	warn("[Bootstrap] server already booted; ignoring duplicate bootstrap")
 	return
 end
-ServerScriptService:SetAttribute("ChronoBreakersServerBooted", true)
 
 local Services = script.Parent.Services
 
