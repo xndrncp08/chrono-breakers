@@ -88,6 +88,16 @@ local function snapshot(): { [string]: any }
 	end
 	local profile = ClientState.get("profile")
 	out.currency = profile and profile.currency
+	out.owned = profile and profile.owned
+	out.equipped = profile and profile.equipped
+	out.terminalStates = {}
+	for id, terminal in ClientState.get("terminals") or {} do
+		out.terminalStates[id] = terminal.state
+	end
+	out.participants = {}
+	for _, p in (snap and snap.participants) or {} do
+		out.participants[tostring(p.userId)] = p.role .. ":" .. p.status
+	end
 	local abilities = ClientState.get("abilities") or {}
 	out.abilityReadyAt = {}
 	for id, state in abilities do

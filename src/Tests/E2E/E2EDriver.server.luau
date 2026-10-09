@@ -21,13 +21,15 @@ end
 local channel = Instance.new("RemoteEvent")
 channel.Name = "E2EChannel"
 local replies: { [number]: any } = {}
-local helloFrom: Player? = nil
+local helloPlayers: { Player } = {}
 channel.OnServerEvent:Connect(function(player: Player, message: any)
 	if type(message) ~= "table" then
 		return
 	end
 	if message.hello then
-		helloFrom = player
+		if not table.find(helloPlayers, player) then
+			table.insert(helloPlayers, player)
+		end
 	elseif type(message.id) == "number" then
 		replies[message.id] = message
 	end
@@ -52,6 +54,7 @@ local TemporalTrap = req({ "Components", "TemporalTrap" })
 local PlacementRules = req({ "Core", "PlacementRules" })
 local MapValidator = req({ "World", "MapValidator" })
 local MapLayout = req({ "World", "MapLayout" })
+local Economy = req({ "Core", "Economy" })
 
 local passed, failed = 0, 0
 local function check(name: string, condition: boolean, detail: any?)
@@ -730,30 +733,496 @@ local function runMatchTwo(player: Player)
 	)
 end
 
+local function moveFacing(player: Player, position: Vector3, lookAt: Vector3)
+	local character = player.Character
+	if character then
+		character:PivotTo(CFrame.lookAt(position, Vector3.new(lookAt.X, position.Y, lookAt.Z)))
+		req({ "Services", "SecurityService" }).ResetMovement(player)
+	end
+end
+
+local function walkSpeed(player: Player): number?
+	local h = humanoidOf(player)
+	return h and h.WalkSpeed
+end
+
+local function runMultiplayer(a: Player, b: Player)
+	local d = MatchService.GetDirector()
+
+	-- 1. Economy through the real shop remote (both players, before queueing)
+	for _, p in { a, b } do
+		PlayerDataService.Mutate(p, function(profile)
+			return Economy.grant(profile, 400)
+		end)
+		local before = (PlayerDataService.GetProfile(p) :: any).ChronosScrap
+		local buy = client(p, "fire", { remote = "ShopRequest", args = { "Purchase", "EchoScanner" } })
+		check(`shop[{p.Name}]: purchase Echo Scanner accepted`, buy and buy[1] and buy[1].ok == true, codes(buy))
+		local after = (PlayerDataService.GetProfile(p) :: any).ChronosScrap
+		check(`shop[{p.Name}]: cost 250 deducted once`, after == before - 250, `{before} -> {after}`)
+		local again = client(p, "fire", { remote = "ShopRequest", args = { "Purchase", "EchoScanner" } })
+		check(`shop[{p.Name}]: re-purchase rejected AlreadyOwned`, hasCode(again, "AlreadyOwned"), codes(again))
+		local poor = client(p, "fire", { remote = "ShopRequest", args = { "Purchase", "TrailGold" } })
+		check(
+			`shop[{p.Name}]: unaffordable item rejected, no charge`,
+			hasCode(poor, "InsufficientFunds") and (PlayerDataService.GetProfile(p) :: any).ChronosScrap == after,
+			codes(poor)
+		)
+		local equip = client(p, "fire", { remote = "ShopRequest", args = { "Equip", "EchoScanner" } })
+		check(`shop[{p.Name}]: equip accepted`, equip and equip[1] and equip[1].ok == true, codes(equip))
+		local snap = client(p, "snapshot")
+		check(
+			`client[{p.Name}]: loadout mirrored (owned + equipped)`,
+			snap and snap.owned and snap.owned.EchoScanner == true and snap.equipped.Gadget == "EchoScanner",
+			snap and snap.equipped
+		)
+	end
+
+	-- 2. Two-player minimum (Studio solo matches are disabled with 2 players in the server)
+	local joinA = client(a, "fire", { remote = "QueueRequest", args = { "Join" } })
+	check("queue: first player joins", joinA and joinA[1] and joinA[1].ok == true, codes(joinA))
+	task.wait(3)
+	check("queue: one queued player waits (minimum 2)", d:getPhase() == "WaitingForPlayers", d:getPhase())
+	local joinB = client(b, "fire", { remote = "QueueRequest", args = { "Join" } })
+	check("queue: second player joins", joinB and joinB[1] and joinB[1].ok == true, codes(joinB))
+	check(
+		"match: intermission starts at 2 players",
+		waitFor(function()
+			return d:getPhase() == "Intermission"
+		end, 3),
+		d:getPhase()
+	)
+	check(
+		"match: intro after 15 s intermission",
+		waitFor(function()
+			return d:getPhase() == "Intro"
+		end, 20),
+		d:getPhase()
+	)
+
+	-- 3. Roles
+	local roleA, roleB = d:getRole(a.UserId), d:getRole(b.UserId)
+	check(
+		"roles: exactly one Time-Keeper and one Infiltrator",
+		(roleA == "TimeKeeper") ~= (roleB == "TimeKeeper") and roleA ~= nil and roleB ~= nil,
+		`{roleA}/{roleB}`
+	)
+	local keeper = if roleA == "TimeKeeper" then a else b
+	local infiltrator = if keeper == a then b else a
+	check(
+		"spawn: Keeper placed in the Sanctum",
+		waitFor(function()
+			local r = rootOf(keeper)
+			return r ~= nil and r.Position.Z < -60 and math.abs(r.Position.X) < 15
+		end, 8),
+		rootOf(keeper) and (rootOf(keeper) :: BasePart).Position
+	)
+	check(
+		"spawn: Infiltrator placed in the Spawn Bay",
+		waitFor(function()
+			local r = rootOf(infiltrator)
+			return r ~= nil and r.Position.Z > 55 and r.Position.X < -50
+		end, 8),
+		rootOf(infiltrator) and (rootOf(infiltrator) :: BasePart).Position
+	)
+	local ks = client(keeper, "snapshot")
+	local is = client(infiltrator, "snapshot")
+	check(
+		"client: Keeper sees role reveal as TimeKeeper",
+		ks and ks.role == "TimeKeeper" and ks.ui_RoleReveal == true,
+		ks and ks.role
+	)
+	check(
+		"client: Infiltrator sees role reveal as Infiltrator",
+		is and is.role == "Infiltrator" and is.ui_RoleReveal == true,
+		is and is.role
+	)
+
+	-- 4. Active: Keeper release hold, Infiltrator spawn protection
+	check(
+		"match: active",
+		waitFor(function()
+			return d:getPhase() == "Active"
+		end, 12),
+		d:getPhase()
+	)
+	task.wait(0.5)
+	check("keeper: held in the Sanctum after Active begins", near(walkSpeed(keeper), 0), walkSpeed(keeper))
+	check("infiltrator: free to move (16)", near(walkSpeed(infiltrator), 16), walkSpeed(infiltrator))
+	check("infiltrator: spawn protection", StatusEffectService.IsInvulnerable(infiltrator))
+	local heldCast = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(0, 0, -60) } :: { any } }
+	)
+	check("keeper: abilities rejected while held (Restrained)", hasCode(heldCast, "Restrained"), codes(heldCast))
+	ks = client(keeper, "snapshot")
+	is = client(infiltrator, "snapshot")
+	check("client: Keeper ability bar has 3 slots", ks and ks.ui_abilitySlots == 3, ks and ks.ui_abilitySlots)
+	check(
+		"client: Infiltrator ability bar has 1 gadget slot",
+		is and is.ui_abilitySlots == 1,
+		is and is.ui_abilitySlots
+	)
+	check(
+		"replication: both clients see both participants",
+		ks
+			and is
+			and ks.participants[tostring(infiltrator.UserId)] == "Infiltrator:Active"
+			and is.participants[tostring(keeper.UserId)] == "TimeKeeper:Active",
+		ks and ks.participants
+	)
+
+	-- 5. Echo Scanner (equipped gadget) reveals the Keeper
+	local echo = client(infiltrator, "fire", { remote = "AbilityRequest", args = { "EchoScanner" } })
+	check("gadget: Echo Scanner accepted", echo and echo[1] and echo[1].ok == true, codes(echo))
+	check("gadget: Keeper marked Revealed", StatusEffectService.Has(keeper, "Revealed"))
+	local stab = client(infiltrator, "fire", { remote = "AbilityRequest", args = { "Stabilizer" } })
+	check(
+		"gadget: unequipped Stabilizer rejected (loadout locked at match start)",
+		hasCode(stab, "NotOwned"),
+		codes(stab)
+	)
+
+	check(
+		"keeper: released after 10 s (speed 17)",
+		waitFor(function()
+			return near(walkSpeed(keeper), 17)
+		end, 12),
+		walkSpeed(keeper)
+	)
+
+	-- 6. Time-Freeze Zone via the real remote
+	moveFacing(infiltrator, Vector3.new(0, 3, 25), Vector3.new(0, 3, 40))
+	moveFacing(keeper, Vector3.new(0, 3, 12), Vector3.new(0, 3, 25))
+	task.wait(0.5)
+	local far = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(80, 0, 80) } :: { any } }
+	)
+	check("freeze: target beyond range rejected", hasCode(far, "OutOfRange"), codes(far))
+	local hidden = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(0, 0, -20) } :: { any } }
+	)
+	check(
+		"freeze: target behind the Chrono Core rejected (NoLineOfSight)",
+		hasCode(hidden, "NoLineOfSight"),
+		codes(hidden)
+	)
+	local cast = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(0, 0.2, 25) } :: { any } }
+	)
+	check("freeze: valid cast accepted", cast and cast[1] and cast[1].ok == true, codes(cast))
+	check(
+		"freeze: zone instance exists",
+		waitFor(function()
+			local zones = AbilityService.CountRuntime()
+			return zones == 1
+		end, 1)
+	)
+	check(
+		"freeze: Infiltrator slowed to 4.8 after telegraph",
+		waitFor(function()
+			return near(walkSpeed(infiltrator), 4.8)
+		end, 2),
+		walkSpeed(infiltrator)
+	)
+	is = client(infiltrator, "snapshot")
+	check("client: Infiltrator sees slowed status", is and is.slowed == true)
+	local recast = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TimeFreeze", Vector3.new(0, 0.2, 25) } :: { any } }
+	)
+	check("freeze: recast rejected OnCooldown", hasCode(recast, "OnCooldown"), codes(recast))
+	moveFacing(infiltrator, Vector3.new(-40, 3, 25), Vector3.new(-40, 3, 40))
+	check(
+		"freeze: leaving the zone restores 16",
+		waitFor(function()
+			return near(walkSpeed(infiltrator), 16)
+		end, 2),
+		walkSpeed(infiltrator)
+	)
+	check(
+		"freeze: zone expires and is cleaned up",
+		waitFor(function()
+			local zones = AbilityService.CountRuntime()
+			return zones == 0
+		end, 12)
+	)
+
+	-- 7. Temporal Trap via the real remote
+	moveFacing(keeper, Vector3.new(0, 3, 12), Vector3.new(8, 3, 24))
+	task.wait(0.3)
+	local trap = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TemporalTrap", Vector3.new(8, 0.2, 24) } :: { any } }
+	)
+	check("trap: placement accepted", trap and trap[1] and trap[1].ok == true, codes(trap))
+	local trap2 = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "TemporalTrap", Vector3.new(9, 0.2, 25) } :: { any } }
+	)
+	check("trap: second trap blocked (cooldown before spacing)", hasCode(trap2, "OnCooldown"), codes(trap2))
+	task.wait(1.8) -- arming
+	moveFacing(infiltrator, Vector3.new(8, 3, 24), Vector3.new(8, 3, 40))
+	check(
+		"trap: Infiltrator stunned (speed 0)",
+		waitFor(function()
+			return near(walkSpeed(infiltrator), 0)
+		end, 2),
+		walkSpeed(infiltrator)
+	)
+	check(
+		"trap: consumed after triggering",
+		waitFor(function()
+			local _, traps = AbilityService.CountRuntime()
+			return traps == 0
+		end, 2)
+	)
+	check(
+		"trap: stun -> 40% slow -> 16",
+		waitFor(function()
+			return near(walkSpeed(infiltrator), 16)
+		end, 6),
+		walkSpeed(infiltrator)
+	)
+
+	-- 8. Chrono Strike: damage interrupts hacking, three strikes eliminate, credit to Keeper
+	moveToTerminal(infiltrator, "ArchiveTerminal")
+	local pressed = client(infiltrator, "prompt", { terminal = "Terminal_ArchiveTerminal" })
+	check("strike: Infiltrator started a hack", pressed == "pressed" and waitFor(function()
+		return terminalState("ArchiveTerminal") == "Hacking"
+	end, 3), terminalState("ArchiveTerminal"))
+	ks = client(keeper, "snapshot")
+	check(
+		"replication: Keeper client sees the terminal being hacked",
+		ks and ks.terminalStates.ArchiveTerminal == "Hacking",
+		ks and ks.terminalStates
+	)
+	local ipos = (rootOf(infiltrator) :: BasePart).Position
+	local kpos = ipos + Vector3.new(0, 0, 4)
+	moveFacing(keeper, kpos, ipos)
+	task.wait(0.3)
+	local aim = Vector3.new(ipos.X - kpos.X, 0, ipos.Z - kpos.Z).Unit
+	local hit1 = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.6 }
+	)
+	local quick = client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.3 }
+	)
+	check("strike: cooldown enforced", hasCode(quick, "OnCooldown"), codes(quick))
+
+	check("strike: accepted", hit1 and hit1[1] and hit1[1].ok == true, codes(hit1))
+	check(
+		"strike: 34 damage applied",
+		waitFor(function()
+			local h = humanoidOf(infiltrator)
+			return h ~= nil and near(h.Health, 66, 0.5)
+		end, 1),
+		humanoidOf(infiltrator) and (humanoidOf(infiltrator) :: Humanoid).Health
+	)
+	check(
+		"strike: damage interrupted the hack",
+		waitFor(function()
+			return terminalState("ArchiveTerminal") == "Interrupted"
+		end, 1),
+		terminalState("ArchiveTerminal")
+	)
+	task.wait(1.3)
+	client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.3 }
+	)
+	task.wait(1.3)
+	client(
+		keeper,
+		"fire",
+		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.3 }
+	)
+	check(
+		"elimination: third strike eliminates the Infiltrator",
+		waitFor(function()
+			local p = d:getParticipant(infiltrator.UserId)
+			return p ~= nil and p.status == "Eliminated"
+		end, 3)
+	)
+	local result = d.session and d.session.result
+	check(
+		"result: Time-Keeper wins AllEliminated",
+		result ~= nil and result.winner == "TimeKeeper" and result.reason == "AllEliminated",
+		result and result.reason
+	)
+	check(
+		"result: elimination credited to the Keeper",
+		result ~= nil and result.participants[keeper.UserId].eliminations == 1
+	)
+	local kr, ir: any = nil, nil
+	check(
+		"result: both clients received their results",
+		waitFor(function()
+			kr = client(keeper, "snapshot")
+			ir = client(infiltrator, "snapshot")
+			return kr.result ~= nil
+				and ir.result ~= nil
+				and kr.result.matchId == result.matchId
+				and ir.result.matchId == result.matchId
+		end, 6)
+	)
+	check(
+		"rewards: Keeper victory = 20 + 50 + 20",
+		kr and kr.result and kr.result.won == true and kr.result.total == 90,
+		kr and kr.result
+	)
+	check(
+		"rewards: Infiltrator defeat = participation 20",
+		ir and ir.result and ir.result.won == false and ir.result.total == 20,
+		ir and ir.result
+	)
+	check(
+		"cleanup: runtime emptied at resolution",
+		#WorldService.GetRuntimeFolder():GetChildren() == 0,
+		#WorldService.GetRuntimeFolder():GetChildren()
+	)
+	check(
+		"lifecycle: returns to WaitingForPlayers",
+		waitFor(function()
+			return d:getPhase() == "WaitingForPlayers" and d.session == nil
+		end, 30),
+		d:getPhase()
+	)
+
+	-- 9. Disconnect mid-match: the Infiltrator leaves during Active
+	local qa = client(a, "fire", { remote = "QueueRequest", args = { "Join" } })
+	local qb = client(b, "fire", { remote = "QueueRequest", args = { "Join" } })
+	check("match 2: both re-queued", qa and qa[1] and qa[1].ok and qb and qb[1] and qb[1].ok, `{codes(qa)} {codes(qb)}`)
+	check(
+		"match 2: active",
+		waitFor(function()
+			return d:getPhase() == "Active"
+		end, 35),
+		d:getPhase()
+	)
+	local leaver = nil :: Player?
+	for _, p in { a, b } do
+		if d:getRole(p.UserId) == "Infiltrator" then
+			leaver = p
+		end
+	end
+	local stayer = if leaver == a then b else a
+	local scrapBefore = (PlayerDataService.GetProfile(stayer) :: any).ChronosScrap
+	if leaver then
+		moveToTerminal(leaver, "ReactorTerminal")
+		client(leaver, "prompt", { terminal = "Terminal_ReactorTerminal" })
+		waitFor(function()
+			return terminalState("ReactorTerminal") == "Hacking"
+		end, 3)
+		local leaverId = leaver.UserId
+		leaver:Kick("E2E disconnect test")
+		check(
+			"disconnect: hack interrupted when the hacker leaves",
+			waitFor(function()
+				return terminalState("ReactorTerminal") ~= "Hacking"
+			end, 3),
+			terminalState("ReactorTerminal")
+		)
+		check(
+			"disconnect: resolves InfiltratorsLeft for the Keeper",
+			waitFor(function()
+				return d.session ~= nil and d.session.result ~= nil and d.session.result.reason == "InfiltratorsLeft"
+			end, 3)
+		)
+		check(
+			"disconnect: departed player recorded as disconnected (ineligible for rewards)",
+			d.session.result.participants[leaverId].connected == false
+				and req({ "Core", "RewardCalculator" }).compute(
+						d.session.result,
+						d.session.result.participants[leaverId]
+					).eligible
+					== false
+		)
+		check(
+			"disconnect: staying Keeper paid the win",
+			waitFor(function()
+				local p = PlayerDataService.GetProfile(stayer)
+				return p ~= nil and p.ChronosScrap == scrapBefore + 70
+			end, 3),
+			(PlayerDataService.GetProfile(stayer) :: any).ChronosScrap - scrapBefore
+		)
+		check(
+			"disconnect: lifecycle recovers to WaitingForPlayers",
+			waitFor(function()
+				return d:getPhase() == "WaitingForPlayers"
+			end, 30),
+			d:getPhase()
+		)
+	end
+end
+
 task.spawn(function()
-	print("[E2E] driver waiting for a player (Studio Play, one player)")
+	print("[E2E] driver waiting for players (Studio Play: 1 player = solo suite, 2 players = multiplayer suite)")
 	local ready = waitFor(function()
 		local ok = pcall(function()
 			return MatchService.GetDirector()
 		end)
-		return ok and helloFrom ~= nil and helloFrom.Character ~= nil and #Players:GetPlayers() == 1
+		return ok and #helloPlayers >= 1 and (helloPlayers[1] :: Player).Character ~= nil
 	end, 120)
 	if not ready then
-		warn("[E2E] SKIPPED: needs exactly one player in a Studio Play session")
+		warn("[E2E] SKIPPED: no player joined")
 		return
 	end
-	local player = helloFrom :: Player
+	-- Give a second Studio test client time to join before choosing the suite.
+	waitFor(function()
+		return #helloPlayers >= 2
+	end, 8)
 	task.wait(2) -- let ClientReady/state sync settle
-	print(`[E2E] starting with {player.Name}`)
-	local ok, err = Safe.call(runMatchOne, player)
-	if not ok then
-		check("match 1 completed without driver errors", false, err)
+	local mode = if #helloPlayers >= 2 and #Players:GetPlayers() == 2 then "multiplayer" else "solo"
+	-- Precondition: every player idle in the lobby. Manual input (e.g. clicking Join Queue) during
+	-- the run invalidates the suite, so abort clearly instead of reporting misleading failures.
+	local director = MatchService.GetDirector()
+	for _, p in helloPlayers do
+		if director.queue:contains(p.UserId) or director:getParticipant(p.UserId) ~= nil then
+			local summary =
+				`[E2E] {mode}: ABORTED — {p.Name} was already queued or in a match (manual input during the test?)`
+			ReplicatedStorage:SetAttribute("E2ESummary", summary)
+			warn(summary)
+			return
+		end
 	end
-	ok, err = Safe.call(runMatchTwo, player)
-	if not ok then
-		check("match 2 completed without driver errors", false, err)
+	print(`[E2E] starting {mode} suite with {#helloPlayers} player(s)`)
+	if mode == "solo" then
+		local player = helloPlayers[1] :: Player
+		local ok, err = Safe.call(runMatchOne, player)
+		if not ok then
+			check("match 1 completed without driver errors", false, err)
+		end
+		ok, err = Safe.call(runMatchTwo, player)
+		if not ok then
+			check("match 2 completed without driver errors", false, err)
+		end
+	else
+		for _, p in helloPlayers do
+			waitFor(function()
+				return p.Character ~= nil
+			end, 10)
+		end
+		local ok, err = Safe.call(runMultiplayer, helloPlayers[1] :: Player, helloPlayers[2] :: Player)
+		if not ok then
+			check("multiplayer suite completed without driver errors", false, err)
+		end
 	end
-	local summary = `[E2E] {passed} passed, {failed} failed`
+	local summary = `[E2E] {mode}: {passed} passed, {failed} failed`
 	ReplicatedStorage:SetAttribute("E2ESummary", summary)
 	if failed > 0 then
 		warn(summary)
