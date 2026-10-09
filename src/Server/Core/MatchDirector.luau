@@ -559,6 +559,11 @@ function MatchDirector.new(params: Params): MatchDirector
 	end
 
 	local function processTerminals(session: Session, now: number)
+		-- Progress earned after the match timer expired must not count, even if a server hitch
+		-- delivers the tick late; a hack finishing exactly at the deadline still counts.
+		if self.machine.phase == "Active" and session.deadline ~= nil then
+			now = math.min(now, session.deadline)
+		end
 		for _, id in session.terminalOrder do
 			local terminal = session.terminals[id]
 			if terminal:tickLockout(now) then

@@ -122,11 +122,11 @@ function ProfileStore.new(options: Options): ProfileStore
 			local ok, err = pcall(function()
 				adapter:UpdateAsync(key, function(record: any): any
 					lockLost = false
-					if
-						type(record) == "table"
-						and type(record.Lock) == "table"
-						and record.Lock.JobId ~= options.jobId
-					then
+					local lock = if type(record) == "table" and type(record.Lock) == "table" then record.Lock else nil
+					-- Foreign lock: another server owns the session. Missing lock on a normal save: we
+					-- already released it (e.g. an autosave landing after the leave-save), so writing
+					-- would silently re-lock a profile whose player has gone.
+					if (lock ~= nil and lock.JobId ~= options.jobId) or (lock == nil and not release) then
 						lockLost = true
 						return nil
 					end

@@ -1,0 +1,77 @@
+# Studio E2E multiplayer run 2 — 2026-10-09 (Test > Clients and Servers, 2 players)
+# Adds live zone/trap cleanup at resolution; extracted from the Studio server log (0.742.0.7421053_20261009T214139Z_Studio_bbb90_last.log)
+[E2E] driver waiting for players (1 player = solo suite, 2 = multiplayer, 3-5 = squad)
+[E2E] starting multiplayer suite with 2 player(s)
+[E2E] PASS shop[Player1]: purchase Echo Scanner accepted
+[E2E] PASS shop[Player1]: cost 250 deducted once
+[E2E] PASS shop[Player1]: re-purchase rejected AlreadyOwned
+[E2E] PASS shop[Player1]: unaffordable item rejected, no charge
+[E2E] PASS shop[Player1]: equip accepted
+[E2E] PASS client[Player1]: loadout mirrored (owned + equipped)
+[E2E] PASS shop[Player2]: purchase Echo Scanner accepted
+[E2E] PASS shop[Player2]: cost 250 deducted once
+[E2E] PASS shop[Player2]: re-purchase rejected AlreadyOwned
+[E2E] PASS shop[Player2]: unaffordable item rejected, no charge
+[E2E] PASS shop[Player2]: equip accepted
+[E2E] PASS client[Player2]: loadout mirrored (owned + equipped)
+[E2E] PASS queue: first player joins
+[E2E] PASS queue: one queued player waits (minimum 2)
+[E2E] PASS queue: second player joins
+[E2E] PASS match: intermission starts at 2 players
+[E2E] PASS match: intro after 15 s intermission
+[E2E] PASS roles: exactly one Time-Keeper and one Infiltrator
+[E2E] PASS spawn: Keeper placed in the Sanctum
+[E2E] PASS spawn: Infiltrator placed in the Spawn Bay
+[E2E] PASS client: Keeper sees role reveal as TimeKeeper
+[E2E] PASS client: Infiltrator sees role reveal as Infiltrator
+[E2E] PASS match: active
+[E2E] PASS keeper: held in the Sanctum after Active begins
+[E2E] PASS infiltrator: free to move (16)
+[E2E] PASS infiltrator: spawn protection
+[E2E] PASS keeper: abilities rejected while held (Restrained)
+[E2E] PASS client: Keeper ability bar has 3 slots
+[E2E] PASS client: Infiltrator ability bar has 1 gadget slot
+[E2E] PASS replication: both clients see both participants
+[E2E] PASS gadget: Echo Scanner accepted
+[E2E] PASS gadget: Keeper marked Revealed
+[E2E] PASS gadget: unequipped Stabilizer rejected (loadout locked at match start)
+[E2E] PASS keeper: released after 10 s (speed 17)
+[E2E] PASS freeze: target beyond range rejected
+[E2E] PASS freeze: target behind the Chrono Core rejected (NoLineOfSight)
+[E2E] PASS freeze: valid cast accepted
+[E2E] PASS freeze: zone instance exists
+[E2E] PASS freeze: Infiltrator slowed to 4.8 after telegraph
+[E2E] PASS client: Infiltrator sees slowed status
+[E2E] PASS freeze: recast rejected OnCooldown
+[E2E] PASS freeze: leaving the zone restores 16
+[E2E] PASS freeze: zone expires and is cleaned up
+[E2E] PASS trap: placement accepted
+[E2E] PASS trap: second trap blocked (cooldown before spacing)
+[E2E] PASS trap: Infiltrator stunned (speed 0)
+[E2E] PASS trap: consumed after triggering
+[E2E] PASS trap: stun -> 40% slow -> 16
+[E2E] PASS strike: Infiltrator started a hack
+[E2E] PASS replication: Keeper client sees the terminal being hacked
+[E2E] PASS strike: cooldown enforced
+[E2E] PASS strike: accepted
+[E2E] PASS strike: 34 damage applied
+[E2E] PASS strike: damage interrupted the hack
+[E2E] PASS elimination: third strike eliminates the Infiltrator
+[E2E] PASS result: Time-Keeper wins AllEliminated
+[E2E] PASS result: elimination credited to the Keeper
+[E2E] PASS result: both clients received their results
+[E2E] PASS rewards: Keeper victory = 20 + 50 + 20
+[E2E] PASS rewards: Infiltrator defeat = participation 20
+[E2E] PASS cleanup: runtime emptied at resolution
+[E2E] PASS lifecycle: returns to WaitingForPlayers
+[E2E] PASS match 2: both re-queued
+[E2E] PASS match 2: active
+[E2E] PASS match 2: Keeper released
+[E2E] PASS match 2: zone and trap live before resolution
+[E2E] PASS disconnect: hack interrupted when the hacker leaves
+[E2E] PASS disconnect: resolves InfiltratorsLeft for the Keeper
+[E2E] PASS cleanup: live zone and trap destroyed at resolution
+[E2E] PASS disconnect: departed player recorded as disconnected (ineligible for rewards)
+[E2E] PASS disconnect: staying Keeper paid the win
+[E2E] PASS disconnect: lifecycle recovers to WaitingForPlayers
+[E2E] multiplayer: 72 passed, 0 failed
