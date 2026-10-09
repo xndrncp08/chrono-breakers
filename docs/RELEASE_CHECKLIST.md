@@ -20,9 +20,9 @@ Status legend: [x] verified with evidence · [ ] not yet verified.
 - [ ] DataStore round trip in a published test place (rejoin keeps Scrap/items/settings)
 
 ## Configuration review
-- [ ] `GameConfig.Studio.AllowSoloMatch` only affects Studio (`RunService:IsStudio()` gate)
-- [ ] `ServerConfig.Security.KickOnFlood` deliberately false
-- [ ] Audio: only verified `rbxasset://sounds` entries; music unconfigured
+- [x] `GameConfig.Studio.AllowSoloMatch` only affects Studio — `MatchService.Init` sets `studioSolo = RunService:IsStudio() and …`; `allowKeeperless` and `soloIntermissionDuration` are only consulted through it (code review, 2026-10-09)
+- [x] `ServerConfig.Security.KickOnFlood` deliberately false (reject + log preferred; documented in `SecurityService`) (code review, 2026-10-09)
+- [x] Audio: only verified `rbxasset://sounds` entries; `LobbyMusic`/`MatchMusic` ids are nil (code review, 2026-10-09)
 
 ## Publishing (not authorised yet)
 - [ ] Explicit approval from the owner to publish / change experience settings

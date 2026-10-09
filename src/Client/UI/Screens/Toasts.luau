@@ -1,6 +1,7 @@
 --!strict
 -- Toast stack (right side) and announcement banner (top centre). Bounded: at most MAX_TOASTS on
--- screen; older toasts are removed first. Banners replace each other.
+-- screen; older toasts are removed first. Banners replace each other. Toasts draw above modals (they
+-- report shop/loadout actions); the banner draws beneath them.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local TweenService = game:GetService("TweenService")
@@ -49,7 +50,7 @@ function Toasts.new(parent: Instance): Toasts
 		Parent = parent,
 	})
 	banner.Visible = false
-	banner.ZIndex = 30
+	banner.ZIndex = 15 -- above the HUD but beneath modals (20), so it never covers a dialog's title bar
 	Create("UISizeConstraint", { MaxSize = Vector2.new(620, 64), Parent = banner })
 	banner.Size = UDim2.new(0.9, 0, 0, 64)
 	local bannerAccent = Create("Frame", {

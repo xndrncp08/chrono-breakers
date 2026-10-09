@@ -50,8 +50,9 @@ evidence attached) · **Failed** · **Blocked** (cannot run in this environment;
 | World built correctly | Passed | 91 static parts, 3 terminals (Locked, prompts off), 17 remotes, gate closed |
 | Server boots again after a Run session | **Failed → fixed → Passed** | Defect: boot guard persisted as an attribute (`server already booted`). Fix `33928e7`; two consecutive Run sessions both booted |
 
-### Solo Play suite (E2E driver, one player, keeperless Studio match) — 102 / 102
-Evidence: `evidence/studio-e2e-solo-run2.txt`. Run 1 before the character fix: 89 passed, 13 failed
+### Solo Play suite (E2E driver, one player, keeperless Studio match) — 104 / 104
+Evidence: `evidence/studio-e2e-solo-run4.txt` (run 4, after the UI layering fixes; run 2 was
+102/102 before the two UI checks were added: `evidence/studio-e2e-solo-run2.txt`). Run 1 before the character fix: 89 passed, 13 failed
 (`evidence/studio-e2e-solo-run1-before-fix.txt`). Run 3 was invalidated by a manual Join Queue click
 (`evidence/studio-e2e-solo-run3-manual-input.txt`); the driver now aborts in that case.
 
@@ -102,7 +103,8 @@ Evidence: `evidence/studio-e2e-multiplayer.txt`.
 | DataStore load/save/retry on Roblox servers | **Blocked** | Needs a separate **published test experience** with Studio API access enabled (no production data at risk); unpublished Studio uses the in-memory fallback (observed warning) |
 | Real keyboard/mouse key presses | **Blocked** | Inputs were driven by remotes and `ProximityPrompt:InputHoldBegin`; MCP keystroke simulation needs macOS Accessibility for VS Code |
 | Touch layout / gamepad navigation | **Blocked** | Needs Studio Device Emulator + screenshots; screenshots need macOS Screen Recording for VS Code (requires restarting VS Code) |
-| Visual review of UI and map | **Blocked** | Same Screen Recording requirement (`capture_studio_screenshot` failed: "could not create image from display") |
+| Visual review of UI (results/lobby) | **Failed → fixed → Passed** | Full-screen capture (`capture_studio_screenshot fullScreen=true`) showed the previous match's results still open in the next match with the "Breach the vault" banner drawn over its title bar and Close button, and the Roblox PlayerList covering the Squad Status panel (`evidence/ui-results-banner-overlap-before.png`). Fixes: results close when a new match's role arrives; banner ZIndex 15 (beneath modals); core PlayerList disabled. Verified by 2 new E2E checks (run 4) and `evidence/ui-results-lobby-after.png` |
+| Visual review of HUD, map, other screens | Not run | Full-screen capture works; window capture and resolution switching still need window automation |
 | Reset button disabled in match | Not run | Client-side `SetCore` call; not observable from the server and no client MCP peer registered |
 | Missing optional assets | Not run | Audio fallback by code review only |
 
