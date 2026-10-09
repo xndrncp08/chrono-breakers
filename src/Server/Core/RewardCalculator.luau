@@ -1,0 +1,86 @@
+--!strict
+-- Computes the reward breakdown and stat deltas for one participant from an authoritative result.
+-- Pure: never touches profiles. Applying the reward (idempotently) is RewardLedger's job.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local GameTypes = require(ReplicatedStorage.Shared.Types.GameTypes)
+local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
+
+export type ResultLike = {
+	matchId: string,
+	winner: GameTypes.Team?,
+	reason: GameTypes.ResolutionReason,
+}
+
+export type ParticipantLike = {
+	userId: number,
+	role: GameTypes.Role,
+	status: GameTypes.ParticipantStatus,
+	connected: boolean,
+	hacks: number,
+	eliminations: number,
+	extracted: boolean,
+}
+
+export type Breakdown = {
+	eligible: boolean,
+	won: boolean,
+	lines: { GameTypes.RewardLine },
+	total: number,
+	statDeltas: { [string]: number },
+}
+
+local RewardCalculator = {}
+
+function RewardCalculator.didWin(role: GameTypes.Role, winner: GameTypes.Team?): boolean
+	if winner == nil then
+		return false
+	end
+	if role == "TimeKeeper" then
+		return winner == "TimeKeeper"
+	end
+	return winner == "Infiltrators"
+end
+
+function RewardCalculator.compute(result: ResultLike, participant: ParticipantLike): Breakdown
+	local won = RewardCalculator.didWin(participant.role, result.winner)
+	local breakdown: Breakdown = { eligible = false, won = won, lines = {}, total = 0, statDeltas = {} }
+	-- Aborted matches and players who left before the result are not eligible.
+	if result.reason == "Aborted" or not participant.connected then
+		return breakdown
+	end
+	breakdown.eligible = true
+
+	local function line(label: string, amount: number)
+		if amount > 0 then
+			table.insert(breakdown.lines, { label = label, amount = amount })
+			breakdown.total += amount
+		end
+	end
+
+	line("Participation", RewardConfig.Participation)
+	if won then
+		line("Victory", RewardConfig.Win)
+	end
+	if participant.role == "Infiltrator" then
+		line(`Terminals hacked ×{participant.hacks}`, participant.hacks * RewardConfig.PerTerminalHacked)
+		if participant.extracted then
+			line("Extracted", RewardConfig.Extracted)
+		end
+	else
+		line(`Eliminations ×{participant.eliminations}`, participant.eliminations * RewardConfig.PerElimination)
+	end
+
+	local deltas = breakdown.statDeltas
+	deltas.MatchesPlayed = 1
+	deltas.Wins = if won then 1 else 0
+	deltas.Losses = if won then 0 else 1
+	deltas.TerminalsHacked = participant.hacks
+	deltas.Extractions = if participant.extracted then 1 else 0
+	deltas.Eliminations = participant.eliminations
+	deltas.KeeperMatches = if participant.role == "TimeKeeper" then 1 else 0
+	deltas.InfiltratorMatches = if participant.role == "Infiltrator" then 1 else 0
+	return breakdown
+end
+
+return table.freeze(RewardCalculator)
