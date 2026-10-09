@@ -277,6 +277,7 @@ local function runMatchOne(player: Player)
 	)
 	snap = client(player, "snapshot")
 	check("client: HUD visible, lobby hidden", snap and snap.ui_Hud == true and snap.ui_Lobby == false, snap)
+	check("client: core PlayerList hidden (squad panel owns top-right)", snap and snap.corePlayerList == false)
 	check("client: role reveal dismissed", snap and snap.ui_RoleReveal == false)
 	check(
 		"client: one gadget slot in the ability bar",
@@ -672,6 +673,12 @@ local function runMatchTwo(player: Player)
 		d:getPhase()
 	)
 	check("match 2: new match id", d.session ~= nil)
+	local snap2 = client(player, "snapshot")
+	check(
+		"client: match 1 results closed once match 2 role arrived (Continue never pressed)",
+		snap2 and snap2.ui_Results == false and snap2.ui_Hud == true,
+		snap2 and { results = snap2.ui_Results, hud = snap2.ui_Hud }
+	)
 	local humanoid = humanoidOf(player)
 	if humanoid then
 		humanoid.Health = 0

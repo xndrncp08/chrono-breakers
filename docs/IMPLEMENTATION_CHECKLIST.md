@@ -45,10 +45,11 @@ Status 2026-10-09: full server+client implemented; 133 Lune tests green; analyze
 - [x] Unit + integration tests passing under Lune (145)
 - [x] stylua --check, selene, luau-lsp analyze clean
 - [x] rojo build succeeds
-- [x] Studio validation via MCP: engine boot + 145 in-engine tests; solo E2E 102/102; 2-player E2E 69/69
+- [x] Studio validation via MCP: engine boot + 145 in-engine tests; solo E2E 104/104; 2-player E2E 69/69
 - [x] Fixed (found in Studio): boot guard persisted into place (`33928e7`); CharacterAdded parenting (`a11e89f`)
 - [ ] BLOCKED: real DataStore verification (needs a published test experience with API access)
-- [ ] BLOCKED: screenshots/visual review, touch + gamepad (needs macOS Screen Recording/Accessibility for VS Code)
+- [x] Fixed (found by screenshot): results modal lingering into the next match under the objective banner; PlayerList over the squad panel
+- [ ] Remaining visual review (HUD, map, other screens), touch + gamepad (window automation still fails: System Events lists no Studio windows)
 - [x] Docs: README, GAME_DESIGN, ARCHITECTURE, NETWORK_CONTRACT, DATA_SCHEMA, TEST_PLAN, BALANCE, BUILD_AND_RUN, RELEASE_CHECKLIST
 
 ## Next actions (if resuming)

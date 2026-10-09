@@ -6,6 +6,7 @@
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
@@ -158,6 +159,9 @@ end
 
 function UIController.Start()
 	local gui = screenGui :: ScreenGui
+	-- The lobby menu and squad panel own the top-right corner; there are no leaderstats to show, and
+	-- the Roblox menu's People tab still covers report/friend actions.
+	StarterGui:SetCoreGuiEnabled(Enum.CoreGuiType.PlayerList, false)
 	lobby = LobbyScreen.new(gui, deps)
 	hud = HudScreen.new(gui, deps)
 	RoleReveal.new(gui, deps)
