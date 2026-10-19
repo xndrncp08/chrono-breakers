@@ -1,5 +1,12 @@
 # Game Design — Chrono Breakers: Temporal Heist
 
+> **Survival Protocol.** Instant elimination, open extraction and optional puzzles were replaced by
+> the integrity ladder, Stasis Pods, pursuit systems, Calibration Pulses, the Temporal Collapse and
+> perk loadouts described in [SURVIVAL_DESIGN](SURVIVAL_DESIGN.md). Where the sections below
+> disagree with that document (terminal count, hack time, damage, elimination, extraction window,
+> challenges), SURVIVAL_DESIGN is current; the rest (queue, roles, phases, map contract, economy)
+> still applies.
+
 The core loop below is retained. Expansion systems and current verification limits are described in [EXPANSION_RELEASE](EXPANSION_RELEASE.md).
 
 Describes what is implemented. Values are defaults from `src/Shared/Config` (see BALANCE.md).

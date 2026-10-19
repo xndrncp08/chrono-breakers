@@ -12,6 +12,8 @@
 --     first, a longer slow resumes). Cleanse removes existing Slow/Stun entries explicitly.
 --   * Root (used to hold the Time-Keeper at match start) is not affected by immunity.
 --   * Invulnerable marks spawn protection (damage is rejected by CombatService).
+--   * Crawl (Desynced) overrides everything except Stun/Root: base * (1 - magnitude), no haste, no
+--     jumping, and immunity does not lift it.
 
 export type EffectKind =
 	"Slow"
@@ -23,6 +25,7 @@ export type EffectKind =
 	| "Revealed"
 	| "Cloaked"
 	| "Overclock"
+	| "Crawl"
 
 export type Effect = {
 	key: string,
@@ -41,6 +44,7 @@ export type Movement = {
 	hasted: boolean,
 	slowImmune: boolean,
 	invulnerable: boolean,
+	crawling: boolean,
 }
 
 export type StatusEffects = {
@@ -127,7 +131,7 @@ function StatusEffects.new(): StatusEffects
 	end
 
 	function self:compute(baseWalkSpeed: number, baseJumpPower: number, now: number): Movement
-		local slow, haste = 0, 0
+		local slow, haste, crawl = 0, 0, 0
 		local stunned, rooted, immune, invulnerable = false, false, false, false
 		for _, effect in effects do
 			if now < effect.expiresAt then
@@ -149,11 +153,17 @@ function StatusEffects.new(): StatusEffects
 					stunned = true
 				elseif kind == "Root" then
 					rooted = true
+				elseif kind == "Crawl" then
+					crawl = math.max(crawl, effect.magnitude)
 				end
 			end
 		end
 		local walkSpeed = baseWalkSpeed * (1 - slow) * (1 + haste)
 		local jumpPower = baseJumpPower
+		if crawl > 0 then
+			walkSpeed = baseWalkSpeed * (1 - crawl)
+			jumpPower = 0
+		end
 		if stunned or rooted then
 			walkSpeed = 0
 			jumpPower = 0
@@ -167,6 +177,7 @@ function StatusEffects.new(): StatusEffects
 			hasted = haste > 0,
 			slowImmune = immune,
 			invulnerable = invulnerable,
+			crawling = crawl > 0,
 		}
 	end
 

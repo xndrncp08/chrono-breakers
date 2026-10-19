@@ -34,6 +34,16 @@ local values: { [string]: any } = {
 	modal = nil, -- name of the open modal, if any
 	targeting = nil, -- abilityId being aimed, if any
 	spectating = nil, -- userId being spectated, if any
+	-- Survival Protocol (all presentation copies of server state)
+	calibration = nil, -- { terminalId, challenge } pending Calibration Pulse for the local hacker
+	calibrationResult = nil, -- { grade, at } last judged pulse
+	action = nil, -- { action, target, startedAt, duration } current survival channel
+	stamina = nil, -- { value 0..1, sprinting, exhausted }
+	chased = false, -- the server says the Keeper is chasing the local player
+	huntTargets = {}, -- Keeper: userIds currently chased
+	momentum = 0, -- Keeper: Hunt Momentum bonus
+	resonance = 0, -- 0..1 local Temporal Resonance intensity (client computed)
+	lastHeartbeat = 0, -- os.clock() of the last heartbeat cue (drives the vignette pulse)
 }
 
 function ClientState.get(key: string): any
@@ -71,6 +81,18 @@ function ClientState.myParticipant(): any
 		end
 	end
 	return nil
+end
+
+-- The local player's integrity condition (nil outside a match).
+function ClientState.myCondition(): string?
+	local me = ClientState.myParticipant()
+	return if me and me.status == "Active" then me.condition else nil
+end
+
+-- True when the local player can act (live participant who is not Desynced or In Stasis).
+function ClientState.canAct(): boolean
+	local condition = ClientState.myCondition()
+	return ClientState.isLiveParticipant() and condition ~= "Downed" and condition ~= "Contained"
 end
 
 -- True while the local player is an active (not eliminated/extracted) participant of a live match.

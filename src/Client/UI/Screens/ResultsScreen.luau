@@ -18,9 +18,9 @@ local ResultsScreen = {}
 
 local REASON_TEXT: { [string]: string } = {
 	Extracted = "The Infiltrators escaped with the Chronos tech.",
-	AllEliminated = "Every Infiltrator was caught.",
-	TimeExpired = "The match timer ran out before extraction.",
-	ExtractionFailed = "The extraction window closed with nobody out.",
+	AllEliminated = "Every Infiltrator was erased from the timeline.",
+	TimeExpired = "The match timer ran out before the Collapse.",
+	ExtractionFailed = "The timeline collapsed with nobody out.",
 	KeeperLeft = "The Time-Keeper left the match.",
 	InfiltratorsLeft = "The Infiltrators left the match.",
 	Aborted = "Not enough players remained to play the match.",
@@ -28,8 +28,8 @@ local REASON_TEXT: { [string]: string } = {
 
 local STATUS_TEXT: { [string]: string } = {
 	Active = "Survived",
-	Eliminated = "Eliminated",
-	Extracted = "Extracted",
+	Eliminated = "Erased",
+	Extracted = "Escaped",
 	Disconnected = "Left",
 }
 
@@ -118,6 +118,12 @@ function ResultsScreen.new(parent: Instance, deps: { [string]: any })
 		if result.reason == "Aborted" then
 			headline.Text = "MATCH ABORTED"
 			headline.TextColor3 = Theme.Colors.Warning
+		elseif result.yourRole == "Infiltrator" and result.yourStatus == "Extracted" then
+			headline.Text = "ESCAPED"
+			headline.TextColor3 = Theme.Colors.Success
+		elseif result.yourRole == "Infiltrator" and result.yourStatus == "Eliminated" then
+			headline.Text = if result.won then "ERASED · SQUAD ESCAPED" else "ERASED"
+			headline.TextColor3 = if result.won then Theme.Colors.Warning else Theme.Colors.Danger
 		elseif result.won then
 			headline.Text = "VICTORY"
 			headline.TextColor3 = Theme.Colors.Success
@@ -137,11 +143,26 @@ function ResultsScreen.new(parent: Instance, deps: { [string]: any })
 			return order
 		end
 		line(left, "YOUR MATCH", Theme.Colors.TextSecondary, Theme.TextSize.Micro, nextOrder())
+		local stats = result.stats
 		if result.yourRole == "Infiltrator" then
-			line(left, `Terminals hacked: {result.stats.hacks}`, nil, nil, nextOrder())
-			line(left, `Extracted: {if result.stats.extracted then "Yes" else "No"}`, nil, nil, nextOrder())
+			line(
+				left,
+				`Terminals hacked: {stats.hacks} · Great calibrations: {stats.greats or 0}`,
+				nil,
+				nil,
+				nextOrder()
+			)
+			line(
+				left,
+				`Rescues: {stats.rescues or 0} · Re-syncs: {stats.revives or 0} · Patches: {stats.heals or 0}`,
+				nil,
+				nil,
+				nextOrder()
+			)
+			line(left, `Escaped: {if stats.extracted then "Yes" else "No"}`, nil, nil, nextOrder())
 		elseif result.yourRole == "TimeKeeper" then
-			line(left, `Eliminations: {result.stats.eliminations}`, nil, nil, nextOrder())
+			line(left, `Desyncs: {stats.downs or 0} · Phase-Locks: {stats.containments or 0}`, nil, nil, nextOrder())
+			line(left, `Erasures: {stats.eliminations}`, nil, nil, nextOrder())
 		end
 		line(left, " ", nil, Theme.TextSize.Micro, nextOrder())
 		line(left, `+{result.xp or 0} XP / CLASS MASTERY`, Theme.Colors.Stable, Theme.TextSize.Body, nextOrder())

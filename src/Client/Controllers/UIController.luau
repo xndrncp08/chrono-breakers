@@ -147,6 +147,12 @@ function UIController.HandleActionResult(result: any)
 	UIController.Toast(result.message or Protocol.messageFor(result.code), "Warning", 2.5)
 end
 
+function UIController.CalibrationResult(grade: string)
+	if hud then
+		hud.FlashCalibration(grade)
+	end
+end
+
 function UIController.OpenModal(name: string)
 	if career then
 		career.Modal:Close()

@@ -90,3 +90,27 @@ unique session token. UI components continue to share Theme/Style/Button/Modal; 
 suppresses gameplay bindings, and HUD rows are reused instead of recreated on each update.
 
 See [EXPANSION_RELEASE](EXPANSION_RELEASE.md) for exact limits and live verification still required.
+
+## Survival Protocol
+
+Pure rules added under `Core`: `SurvivalModel` (integrity ladder, pods, stages, camping feedback,
+Endurance), `ChaseModel` (sight-dwell chases, Hunt Momentum), `StaminaModel`, `EndgameModel`
+(relays, collapse tiers, shockwaves), `WorldObjects` (rail fatigue, barriers, doors, lockers) and a
+rewritten `HackChallenge` (Calibration Pulses). `MatchDirector` owns conditions, survival channels
+(`beginAction`/`stopAction` for Revive, Heal, Rescue, Contain, Overload, Relay, Rift), strikes,
+the Slip Rift and the collapse; new optional `WorldQuery` hooks (`distanceTo`, `choosePod`,
+`isKeeperNear`, `actionSpeed`, `modifier`, `canSelfHeal`, `riftSite`, `podIds`, `relayIds`) keep it
+pure and harness-testable.
+
+| Service | Owns / does |
+| --- | --- |
+| SurvivalService | director world queries; condition visuals/movement (Crawl, health mirror), pod holds and releases, Keeper channel slows, relays, rift, shockwaves, calibration routing; character/pod/relay/Overload prompts |
+| InteractionService | vaults (anchored arc), rail fatigue, barrier drop/stun/break, doors, locker hide/search; `IsHidden` for strikes, scans and chases |
+| HuntService | `SprintRequest`, per-player stamina, 5 Hz chase sampling, Hunt Momentum haste |
+| PerkService | perk loadouts locked at match start; `Value`/`Has` modifier lookups |
+
+Bootstrap order appends `SurvivalService`, `InteractionService`, `HuntService`, `PerkService` after
+`AbilityService` (PerkService after MatchService so match classes are set first).
+Client additions: `PursuitController` (Resonance, heartbeat, music intensity, residue, chase
+grade/FOV), `AtmosphereController` (procedural poses, light flicker, collapse haze), and HUD
+modules `SquadPanel`, `CalibrationRing`, `SurvivalOverlay`. See [SURVIVAL_RELEASE](SURVIVAL_RELEASE.md).

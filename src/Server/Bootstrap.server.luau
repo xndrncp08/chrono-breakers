@@ -27,6 +27,10 @@ local ORDER = {
 	"ObjectiveService",
 	"CombatService",
 	"AbilityService",
+	"SurvivalService",
+	"InteractionService",
+	"HuntService",
+	"PerkService",
 	"AnomalyService",
 	"RewardService",
 }

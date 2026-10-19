@@ -4,6 +4,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
+local PerkConfig = require(ReplicatedStorage.Shared.Config.PerkConfig)
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
 
 local ProfileSchema = require(script.Parent.ProfileSchema)
@@ -75,6 +76,33 @@ function Economy.equip(profile: Profile, itemId: any): (boolean, string)
 		return false, "NotOwned"
 	end
 	profile.Equipped[item.Slot] = itemId
+	return true, "Ok"
+end
+
+-- Equips a perk into its loadout (class-specific -> that class, Edict -> Keeper, shared -> the
+-- currently equipped class) or unequips it if already equipped. Unlocks come only from progression.
+function Economy.togglePerk(profile: Profile, perkId: any): (boolean, string)
+	local definition = if type(perkId) == "string" then PerkConfig.get(perkId) else nil
+	if definition == nil then
+		return false, "UnknownItem"
+	end
+	local key = if definition.Role == "TimeKeeper"
+		then "TimeKeeper"
+		else definition.Class or profile.Equipped.Class or "Ghost"
+	local progress = { xp = profile.Progression.XP, mastery = profile.Progression.Mastery }
+	if not PerkConfig.isUnlocked(definition, key, progress) then
+		return false, "Locked"
+	end
+	local list = profile.Perks[key] or {}
+	local index = table.find(list, definition.Id)
+	if index then
+		table.remove(list, index)
+	elseif #list >= PerkConfig.Slots then
+		return false, "LimitReached"
+	else
+		table.insert(list, definition.Id)
+	end
+	profile.Perks[key] = list
 	return true, "Ok"
 end
 

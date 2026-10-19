@@ -13,8 +13,13 @@ local RewardConfig = {
 	PerTerminalHacked = 15,
 	Extracted = 40,
 
+	-- Survival teamwork
+	PerRescue = 12,
+	PerResync = 8,
+
 	-- Time-Keeper
 	PerElimination = 20,
+	PerContainment = 10,
 
 	-- Participants who disconnect before resolution receive nothing (they are not eligible).
 	-- Keeps a short history of paid match ids in the profile to make payouts idempotent.

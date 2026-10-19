@@ -118,6 +118,7 @@ function PlayerDataService.BuildSnapshot(player: Player): GameTypes.ProfileSnaps
 		stats = table.clone(p.Stats :: any),
 		settings = table.clone(p.Settings :: any),
 		progression = Progression.snapshot(p.Progression, os.time()),
+		perks = table.clone(p.Perks),
 	}
 end
 

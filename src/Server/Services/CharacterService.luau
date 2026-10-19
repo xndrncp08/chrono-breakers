@@ -110,6 +110,7 @@ local function onCharacterAdded(player: Player, character: Model)
 	deps.StatusEffectService.SetBaseline(player, roleId)
 	deps.StatusEffectService.Reapply(player)
 	applyTrail(player, character)
+	deps.SurvivalService.SetupCharacter(player, character, roleId)
 
 	local connections = {}
 	table.insert(

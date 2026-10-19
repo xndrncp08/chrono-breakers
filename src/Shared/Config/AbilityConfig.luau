@@ -23,9 +23,9 @@ AbilityConfig.Abilities = table.freeze({
 	ChronoStrike = table.freeze({
 		Id = "ChronoStrike",
 		DisplayName = "Chrono Strike",
-		Description = "A short-range temporal blade. Damages the nearest Infiltrator in front of you.",
+		Description = "A short telegraphed temporal blade: Fractures, then Desyncs the nearest Infiltrator in front of you.",
 		Role = "TimeKeeper",
-		Cooldown = 1.2,
+		Cooldown = 1,
 		TargetMode = "Direction",
 		KeyboardKey = "MouseButton1",
 		GamepadKey = "ButtonR2",
@@ -113,14 +113,15 @@ AbilityConfig.Abilities = table.freeze({
 	Mend = table.freeze({
 		Id = "Mend",
 		DisplayName = "Mend",
-		Description = "Restore 28 health to living allies within 18 studs and line of sight.",
+		Description = "Surge Patch progress by 50% and Re-sync progress by 25% for allies (and you) within 18 studs in sight.",
 		Role = "Infiltrator",
 		Cooldown = 40,
 		TargetMode = "None",
 		KeyboardKey = "F",
 		GamepadKey = "ButtonY",
 		Radius = 18,
-		Healing = 28,
+		HealBoost = 0.5,
+		ReviveBoost = 0.25,
 	} :: AbilityDefinition),
 	Slipstream = table.freeze({
 		Id = "Slipstream",
@@ -137,13 +138,15 @@ AbilityConfig.Abilities = table.freeze({
 	EMP = table.freeze({
 		Id = "EMP",
 		DisplayName = "Disruption Pulse",
-		Description = "Disarm visible traps and cleanse allies within 18 studs.",
+		Description = "Disarm traps, cleanse allies and break a Keeper's Phase-Lock within 18 studs.",
 		Role = "Infiltrator",
 		Cooldown = 36,
 		TargetMode = "None",
 		KeyboardKey = "F",
 		GamepadKey = "ButtonY",
 		Radius = 18,
+		KeeperSlow = 0.5,
+		KeeperSlowDuration = 2,
 	} :: AbilityDefinition),
 
 	-- Infiltrator gadgets (one equipped at a time through the loadout).

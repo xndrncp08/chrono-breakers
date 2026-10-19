@@ -147,6 +147,50 @@ items.TrailRift = {
 	Milestone = "RiftWalker",
 	Color = Color3.fromRGB(156, 112, 255),
 }
+items.TitleLifeline = {
+	Id = "TitleLifeline",
+	DisplayName = "Lifeline",
+	Description = "Unlock by rescuing ten allies from Stasis.",
+	Slot = "Title",
+	Cost = 0,
+	DefaultOwned = false,
+	SortOrder = 34,
+	Milestone = "Lifeline",
+}
+-- Mastery cosmetics (ProgressionConfig.MasteryRoles): never purchasable, earned by playing a role.
+local masteryNames: { [string]: string } = {
+	Ghost = "Ghost",
+	Engineer = "Engineer",
+	ChronoMedic = "Chrono Medic",
+	Phantom = "Phantom",
+	Disruptor = "Disruptor",
+	TimeKeeper = "Time-Keeper",
+}
+for index, id in { "Ghost", "Engineer", "ChronoMedic", "Phantom", "Disruptor", "TimeKeeper" } do
+	local class = ClassConfig.get(id)
+	local color = if class then class.Color else Color3.fromRGB(255, 72, 196)
+	items[`Title{id}Adept`] = {
+		Id = `Title{id}Adept`,
+		DisplayName = `{masteryNames[id]} Adept`,
+		Description = `Mastery 5 as {masteryNames[id]}.`,
+		Slot = "Title",
+		Cost = 0,
+		DefaultOwned = false,
+		SortOrder = 40 + index,
+		Milestone = `{id}Adept`,
+	}
+	items[`Trail{id}`] = {
+		Id = `Trail{id}`,
+		DisplayName = `{masteryNames[id]} Signature Trail`,
+		Description = `Mastery 10 as {masteryNames[id]}: a trail in the role's colour.`,
+		Slot = "Trail",
+		Cost = 0,
+		DefaultOwned = false,
+		SortOrder = 50 + index,
+		Milestone = `{id}Signature`,
+		Color = color,
+	}
+end
 ItemConfig.Items = table.freeze(items)
 
 ItemConfig.DefaultEquipped = table.freeze({

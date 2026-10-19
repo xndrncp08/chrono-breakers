@@ -17,7 +17,10 @@ local PlacementRules = require(script.Parent.Parent.Core.PlacementRules)
 
 local WorldService = {}
 
+export type RiftHandle = { site: string, part: BasePart, escape: ProximityPrompt, seal: ProximityPrompt }
+
 local world: MatchWorldBuilder.BuiltWorld? = nil
+local rift: RiftHandle? = nil
 local geometryParams: RaycastParams? = nil
 local selectedId = "Vault"
 local selectedMap = MapLayout.Vault
@@ -46,6 +49,7 @@ end
 function WorldService.SelectMap(mapId: string)
 	local map = (MapLayout.Maps :: any)[mapId]
 	assert(map, "unknown map")
+	rift = nil
 	if lightingTween then
 		lightingTween:Cancel()
 		lightingTween = nil
@@ -164,6 +168,208 @@ function WorldService.SetTerminalVisual(terminalId: string, state: string, promp
 	terminal.light.Color = color
 	terminal.model:SetAttribute("State", state)
 	terminal.prompt.Enabled = promptEnabled
+end
+
+function WorldService.GetObstacles(): { [string]: MatchWorldBuilder.ObstacleHandle }
+	return getWorld().obstacles
+end
+
+function WorldService.GetObstacle(id: string): MatchWorldBuilder.ObstacleHandle?
+	return getWorld().obstacles[id]
+end
+
+function WorldService.GetLockers(): { [string]: MatchWorldBuilder.LockerHandle }
+	return getWorld().lockers
+end
+
+function WorldService.GetLocker(id: string): MatchWorldBuilder.LockerHandle?
+	return getWorld().lockers[id]
+end
+
+-- "Standing" | "Dropped" | "Broken"
+function WorldService.SetBarrierState(id: string, state: string)
+	local handle = getWorld().obstacles[id]
+	if not handle or handle.kind ~= "Barrier" then
+		return
+	end
+	local dropped = state == "Dropped"
+	handle.part:SetAttribute("State", state)
+	handle.part.CanCollide = dropped
+	handle.part.CanQuery = dropped
+	handle.part.Transparency = if dropped then 0.15 else 1
+	if handle.pylon then
+		handle.pylon.Transparency = if state == "Standing" then 0 else 0.6
+	end
+	handle.prompts.Drop.Enabled = state == "Standing"
+	handle.prompts.Vault.Enabled = dropped
+	handle.prompts.Break.Enabled = dropped
+end
+
+function WorldService.SetDoorOpen(id: string, open: boolean)
+	local handle = getWorld().obstacles[id]
+	if not handle or handle.kind ~= "Door" then
+		return
+	end
+	handle.part:SetAttribute("Open", open)
+	handle.part.CanCollide = not open
+	handle.part.CanQuery = not open
+	handle.part.Transparency = if open then 0.85 else 0
+	handle.prompts.Toggle.ActionText = if open then "Close" else "Open"
+end
+
+function WorldService.SetLockerOccupant(id: string, occupant: number?)
+	local handle = getWorld().lockers[id]
+	if not handle then
+		return
+	end
+	-- The occupant attribute is public on purpose: every client filters prompts locally, and a
+	-- Keeper client can already see all positions, so it reveals nothing new.
+	handle.model:SetAttribute("Occupant", occupant)
+	handle.prompts.Hide.Enabled = occupant == nil
+	handle.prompts.Leave.Enabled = occupant ~= nil
+end
+
+-- Restores every interactable to its match-start state (called when a match begins/cleans up).
+function WorldService.ResetFurniture()
+	for id, handle in getWorld().obstacles do
+		if handle.kind == "Barrier" then
+			WorldService.SetBarrierState(id, "Standing")
+		elseif handle.kind == "Door" then
+			WorldService.SetDoorOpen(id, true)
+		end
+	end
+	for id in getWorld().lockers do
+		WorldService.SetLockerOccupant(id, nil)
+	end
+end
+
+function WorldService.GetPods(): { [string]: MatchWorldBuilder.PodHandle }
+	return getWorld().pods
+end
+
+function WorldService.GetPod(podId: string): MatchWorldBuilder.PodHandle?
+	return getWorld().pods[podId]
+end
+
+function WorldService.GetPodIds(): { string }
+	local ids = {}
+	for _, spec in selectedMap.pods do
+		table.insert(ids, spec.id)
+	end
+	return ids
+end
+
+function WorldService.GetRelay(relayId: string): MatchWorldBuilder.RelayHandle?
+	return getWorld().relays[relayId]
+end
+
+function WorldService.GetRelays(): { [string]: MatchWorldBuilder.RelayHandle }
+	return getWorld().relays
+end
+
+function WorldService.GetRelayIds(): { string }
+	local ids = {}
+	for _, spec in selectedMap.relays do
+		table.insert(ids, spec.id)
+	end
+	return ids
+end
+
+-- Pod visuals: occupied pods glow toward danger as their stage rises.
+function WorldService.SetPodState(podId: string, occupant: number?, stage: number?)
+	local pod = getWorld().pods[podId]
+	if not pod then
+		return
+	end
+	pod.model:SetAttribute("Occupant", occupant)
+	pod.model:SetAttribute("Stage", stage)
+	local color = if occupant == nil
+		then Theme.World.PodGlass
+		elseif (stage or 1) >= 2 then Theme.Colors.Danger
+		else Theme.Colors.Temporal
+	pod.light.Color = color
+	pod.light.Brightness = if occupant then 2.4 else 0.8
+	pod.glass.Color = color
+	pod.prompt.Enabled = occupant ~= nil
+end
+
+function WorldService.SetRelayState(relayId: string, power: number, available: boolean)
+	local relay = getWorld().relays[relayId]
+	if not relay then
+		return
+	end
+	local color = if power >= 1
+		then Theme.TerminalStateColors.Completed
+		elseif available then Theme.TerminalStateColors.Hacking
+		else Theme.TerminalStateColors.Locked
+	relay.model:SetAttribute("Power", power)
+	relay.model:SetAttribute("Available", available)
+	relay.screen.Color = color
+	relay.light.Color = color
+	relay.prompt.Enabled = available and power < 1
+end
+
+function WorldService.GetRiftSitePosition(site: string): Vector3?
+	local index = tonumber(string.match(site, "^Site(%d+)$"))
+	return if index then selectedMap.anomalySites[index] else nil
+end
+
+function WorldService.GetRiftSites(): { string }
+	local ids = {}
+	for index in selectedMap.anomalySites do
+		table.insert(ids, `Site{index}`)
+	end
+	return ids
+end
+
+-- Opens (site) or closes (nil) the Slip Rift. Returns the handle so prompts can be bound.
+function WorldService.SetRift(site: string?): RiftHandle?
+	if rift then
+		rift.part:Destroy()
+		rift = nil
+	end
+	local position = if site then WorldService.GetRiftSitePosition(site) else nil
+	if not site or not position then
+		return nil
+	end
+	local part = Instance.new("Part")
+	part.Name = "SlipRift"
+	part.Anchored, part.CanCollide, part.CanQuery, part.CanTouch = true, false, false, false
+	part.Shape = Enum.PartType.Cylinder
+	part.Size = Vector3.new(0.4, 7, 7)
+	part.CFrame = CFrame.new(position + Vector3.new(0, 4, 0)) * CFrame.Angles(0, math.rad(90), 0)
+	part.Color = Theme.World.Rift
+	part.Material = Enum.Material.Neon
+	part.Transparency = 0.25
+	part:SetAttribute("RiftSite", site)
+	local light = Instance.new("PointLight")
+	light.Color = Theme.World.Rift
+	light.Range = 20
+	light.Brightness = 3
+	light.Parent = part
+	local function prompt(name: string, action: string): ProximityPrompt
+		local p = Instance.new("ProximityPrompt")
+		p.Name = name
+		p.ActionText = action
+		p.ObjectText = "Slip Rift"
+		p.HoldDuration = 0
+		p.KeyboardKeyCode = Enum.KeyCode.E
+		p.GamepadKeyCode = Enum.KeyCode.ButtonX
+		p.MaxActivationDistance = 6
+		p.RequiresLineOfSight = false
+		p.Exclusivity = Enum.ProximityPromptExclusivity.OnePerButton
+		p.Parent = part
+		return p
+	end
+	local handle: RiftHandle = {
+		site = site,
+		part = part,
+		escape = prompt("EscapePrompt", "Slip Through"),
+		seal = prompt("SealPrompt", "Seal Rift"),
+	}
+	part.Parent = getWorld().runtime
+	rift = handle
+	return handle
 end
 
 -- Downward probe against static vault geometry only (characters/effects are excluded).

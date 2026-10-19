@@ -101,6 +101,12 @@ function RewardService.GrantMatchRewards(result: any)
 					hacks = participant.hacks,
 					eliminations = participant.eliminations,
 					extracted = participant.extracted,
+					rescues = participant.rescues,
+					revives = participant.revives,
+					heals = participant.heals,
+					downs = participant.downs,
+					containments = participant.containments,
+					greats = participant.greats,
 				},
 				participants = publicParticipants,
 			}

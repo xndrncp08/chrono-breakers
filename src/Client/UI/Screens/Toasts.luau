@@ -131,7 +131,8 @@ function Toasts.new(parent: Instance): Toasts
 		local userId = game:GetService("Players").LocalPlayer.UserId
 		for _, terminal in ClientState.get("terminals") or {} do
 			if
-				terminal.state == "Hacking" and (terminal.hackerUserId == userId or terminal.assistantUserId == userId)
+				terminal.state == "Hacking"
+				and (terminal.hackerUserId == userId or table.find(terminal.assistants or {}, userId) ~= nil)
 			then
 				self:Toast(text, severity, duration)
 				return

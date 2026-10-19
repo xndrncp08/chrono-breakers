@@ -4,6 +4,10 @@
 --     distance; the Time-Keeper only sees terminals that are being breached (Hacking/Interrupted).
 --   * Extraction marker once extraction opens.
 --   * Hides terminal prompts locally for non-Infiltrators (the server still validates every hack).
+--   * Filters every survival prompt (Re-sync, Patch, Phase-Lock, Rescue, Relay, Overload, Vault,
+--     barriers, doors, lockers, rift) by role, condition and ownership. Filtering only zeroes the
+--     prompt's local activation distance; the server validates every request regardless.
+--   * Markers for teammates' integrity, occupied Stasis Pods, Gate Relays and the Slip Rift.
 --   * Disables the reset button while the local player is an active match participant.
 
 local CollectionService = game:GetService("CollectionService")
@@ -14,6 +18,7 @@ local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
 local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
 local ClientState = require(script.Parent.Parent.ClientState)
@@ -127,6 +132,217 @@ local STATE_LABEL: { [string]: string } = {
 	Completed = "BREACHED ✓",
 }
 
+---------------------------------------------------------------------------
+-- Survival prompt filtering
+---------------------------------------------------------------------------
+
+-- Audience per prompt name: "Infiltrator", "Keeper", "Any", "Ally" (Infiltrators, never on your
+-- own character), "Occupant" (only the player hiding in that locker) or "Vault" (rails: both roles;
+-- dropped barriers: Infiltrators only).
+local AUDIENCE: { [string]: string } = {
+	HackPrompt = "Infiltrator",
+	ResyncPrompt = "Ally",
+	PatchPrompt = "Ally",
+	PhaseLockPrompt = "Keeper",
+	RescuePrompt = "Infiltrator",
+	RelayPrompt = "Infiltrator",
+	OverloadPrompt = "Keeper",
+	VaultPrompt = "Vault",
+	DropPrompt = "Infiltrator",
+	BreakPrompt = "Keeper",
+	TogglePrompt = "Any",
+	HidePrompt = "Infiltrator",
+	SearchPrompt = "Keeper",
+	LeavePrompt = "Occupant",
+	EscapePrompt = "Infiltrator",
+	SealPrompt = "Keeper",
+}
+
+local trackedPrompts: { [ProximityPrompt]: number } = {} -- prompt -> authored activation distance
+
+local function promptAllowed(prompt: ProximityPrompt): boolean
+	local audience = AUDIENCE[prompt.Name]
+	if not audience then
+		return true
+	end
+	local role = myRole()
+	if not inLiveMatch() or not role then
+		return false
+	end
+	local character = player.Character
+	local hidden = character ~= nil and character:GetAttribute("Hidden") == true
+	if audience == "Occupant" then
+		local model = prompt:FindFirstAncestorOfClass("Model")
+		return model ~= nil and model:GetAttribute("Occupant") == player.UserId
+	end
+	if hidden or not ClientState.canAct() then
+		return false
+	end
+	if audience == "Any" then
+		return true
+	elseif audience == "Keeper" then
+		return role == "TimeKeeper"
+	elseif audience == "Ally" then
+		if role ~= "Infiltrator" then
+			return false
+		end
+		if prompt:GetAttribute("TargetUserId") ~= player.UserId then
+			return true
+		end
+		-- Your own Patch prompt only with the Field Patch protocol in this class's loadout.
+		local profile = ClientState.get("profile")
+		local current = ClientState.currentRole()
+		local loadout = profile and profile.perks and current and profile.perks[current.classId]
+		return prompt.Name == "PatchPrompt" and loadout ~= nil and table.find(loadout, "FieldPatch") ~= nil
+	elseif audience == "Vault" then
+		local obstacle = prompt:FindFirstAncestorWhichIsA("BasePart")
+		if not obstacle then
+			return false
+		end
+		if obstacle:GetAttribute("ObstacleKind") == "Barrier" then
+			return role == "Infiltrator"
+		end
+		local sealedUntil = obstacle:GetAttribute("SealedUntil")
+		return role == "TimeKeeper" or not (type(sealedUntil) == "number" and ClientState.now() < sealedUntil)
+	end
+	return role == "Infiltrator"
+end
+
+local function filterPrompts()
+	for prompt, distance in trackedPrompts do
+		if prompt.Parent == nil then
+			trackedPrompts[prompt] = nil
+		else
+			local wanted = if promptAllowed(prompt) then distance else 0
+			if prompt.MaxActivationDistance ~= wanted then
+				prompt.MaxActivationDistance = wanted
+			end
+		end
+	end
+end
+
+local function trackPrompt(instance: Instance)
+	if instance:IsA("ProximityPrompt") and AUDIENCE[instance.Name] and not trackedPrompts[instance] then
+		trackedPrompts[instance] = instance.MaxActivationDistance
+		local wanted = if promptAllowed(instance) then instance.MaxActivationDistance else 0
+		instance.MaxActivationDistance = wanted
+	end
+end
+
+---------------------------------------------------------------------------
+-- Survival markers
+---------------------------------------------------------------------------
+
+type WorldMarker = { gui: BillboardGui, label: TextLabel }
+local worldMarkers: { [Instance]: WorldMarker } = {}
+
+local function worldMarker(adornee: Instance, color: Color3): WorldMarker
+	local existing = worldMarkers[adornee]
+	if existing then
+		return existing
+	end
+	local gui = Create("BillboardGui", {
+		Name = "SurvivalMarker",
+		Adornee = adornee,
+		AlwaysOnTop = true,
+		Size = UDim2.fromOffset(180, 34),
+		StudsOffsetWorldSpace = Vector3.new(0, 6, 0),
+		LightInfluence = 0,
+		MaxDistance = 2000,
+		Parent = markerFolder,
+	}) :: BillboardGui
+	local panel = Style.panel({
+		Size = UDim2.fromScale(1, 1),
+		Color = Theme.Colors.Background,
+		Transparency = 0.25,
+		StrokeColor = color,
+		Radius = Theme.Radius.S,
+		Parent = gui,
+	})
+	local label = Style.text({
+		Font = Theme.Fonts.Heading,
+		TextSize = Theme.TextSize.Micro,
+		Size = UDim2.fromScale(1, 1),
+		XAlign = Enum.TextXAlignment.Center,
+		Color = color,
+		Parent = panel,
+	})
+	local marker = { gui = gui, label = label }
+	worldMarkers[adornee] = marker
+	return marker
+end
+
+local function refreshSurvivalMarkers()
+	local role = myRole()
+	local live = inLiveMatch() or (ClientState.myParticipant() ~= nil and role ~= nil)
+	local snapshot = ClientState.get("snapshot")
+	local seen: { [Instance]: boolean } = {}
+	local root = Workspace:FindFirstChild("ChronoBreakers")
+	if live and snapshot and root then
+		local now = ClientState.now()
+		-- Occupied pods (both roles) with the captive's stage and timer.
+		local byPod: { [string]: any } = {}
+		for _, p in snapshot.participants do
+			if p.podId then
+				byPod[p.podId] = p
+			end
+		end
+		for _, pod in CollectionService:GetTagged("ChronoPod") do
+			local podId = pod:GetAttribute("PodId")
+			local captive = if type(podId) == "string" then byPod[podId] else nil
+			local glass = pod:FindFirstChild("Glass")
+			if captive and glass and pod:IsDescendantOf(root) then
+				seen[glass] = true
+				local marker = worldMarker(glass, Theme.ConditionColors.Contained)
+				marker.label.Text =
+					`STASIS {captive.stage or 1}/{#SurvivalConfig.Containment.StageDurations + 1} · {captive.name} · {math.max(
+						0,
+						captive.podRemaining or 0
+					)}s`
+			end
+		end
+		-- Gate Relays during the Collapse.
+		if snapshot.collapse and not snapshot.collapse.gateOpen then
+			for _, relay in CollectionService:GetTagged("ChronoRelay") do
+				local id = relay:GetAttribute("RelayId")
+				local console = relay:FindFirstChild("Console")
+				if type(id) == "string" and console and relay:IsDescendantOf(root) then
+					seen[console] = true
+					local marker = worldMarker(console, Theme.Colors.Warning)
+					marker.label.Text = `GATE RELAY · {math.floor((snapshot.collapse.relays[id] or 0) * 100)}%`
+				end
+			end
+		end
+		-- Slip Rift.
+		local rift = if snapshot.rift then root:FindFirstChild("SlipRift", true) else nil
+		if rift then
+			seen[rift] = true
+			worldMarker(rift, Theme.World.Rift).label.Text = "SLIP RIFT"
+		end
+		-- Desynced teammates' aura for Infiltrators.
+		if role == "Infiltrator" then
+			for _, p in snapshot.participants do
+				if p.condition == "Downed" and p.status == "Active" and p.userId ~= player.UserId then
+					local other = Players:GetPlayerByUserId(p.userId)
+					local otherRoot = other and other.Character and other.Character:FindFirstChild("HumanoidRootPart")
+					if otherRoot then
+						seen[otherRoot] = true
+						local left = if p.bleedoutAt then math.max(0, math.ceil(p.bleedoutAt - now)) else 0
+						worldMarker(otherRoot, Theme.ConditionColors.Downed).label.Text =
+							`DESYNCED · {p.name} · {left}s`
+					end
+				end
+			end
+		end
+	end
+	for adornee, marker in worldMarkers do
+		if not seen[adornee] then
+			marker.gui:Destroy()
+			worldMarkers[adornee] = nil
+		end
+	end
+end
+
 local function refreshMarkers()
 	local role = myRole()
 	local live = inLiveMatch()
@@ -202,8 +418,12 @@ local function refreshMarkers()
 				gui.Adornee = allyRoot
 				local label = gui:FindFirstChild("Label") :: TextLabel
 				local class = ClassConfig.get(participant.classId)
-				label.Text = `{participant.name} / {math.ceil(humanoid.Health)} HP`
-				label.TextColor3 = if class then class.Color else Theme.Colors.Stable
+				local condition = participant.condition or "Healthy"
+				label.Text = `{participant.name} · {SurvivalConfig.ConditionNames[condition] or condition}`
+				label.TextColor3 = if condition == "Healthy"
+					then (if class then class.Color else Theme.Colors.Stable)
+					else (Theme.ConditionColors :: any)[condition]
+				gui.Enabled = condition ~= "Downed" -- Desynced allies get the stronger aura marker
 			end
 		end
 	end
@@ -366,13 +586,20 @@ function InteractionController.Start()
 		end
 	end)
 
-	-- Distance text refresh at a modest rate (not every frame).
+	for _, instance in Workspace:GetDescendants() do
+		trackPrompt(instance)
+	end
+	Workspace.DescendantAdded:Connect(trackPrompt)
+
+	-- Distance text and prompt filters refresh at a modest rate (not every frame).
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)
 		accumulator += dt
 		if accumulator >= 0.25 then
 			accumulator = 0
 			refreshMarkers()
+			refreshSurvivalMarkers()
+			filterPrompts()
 		end
 	end)
 end
