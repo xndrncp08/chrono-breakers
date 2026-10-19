@@ -48,3 +48,14 @@ Slipstream ×2 for 1.5s/26s CD, EMP 18 studs/36s CD. Pulse: 48 studs, 1.5s warni
 Anomalies: first warning after 30s Active, warning 3s, radius 13, duration 6–12s, next warning 35s
 after expiry. One at a time; protected spawns/objectives are excluded by map validation. Progression
 never modifies these values. Real match balance and low-end performance remain release gates.
+
+## Survival Protocol values
+
+Source of truth: `SurvivalConfig.luau`, `PerkConfig.luau`, `ClassConfig.luau`. Key relationships
+(also enforced by `ConfigConsistency.spec`): the Keeper (17.25) outruns every running class by >8%,
+every sprinting class (×1.32) outruns the Keeper, full Hunt Momentum (+15%) never makes sprint
+pointless, and Desynced crawl stays under 4 studs/s. Two hits Desync; stages last 60 s / 30 s /
+erase; camping releases a captive after 15 s; rails seal after 3 vaults in 40 s; four of five
+terminals at 40 s (solo, four-player squad) with ×0.5/0.7/0.85 scaling for 1–3 Infiltrators;
+Collapse 120 s. Perk modifiers are bounded to ≤×2 and unlock only through play. All of these need
+1v4 playtests before release (see SURVIVAL_RELEASE).

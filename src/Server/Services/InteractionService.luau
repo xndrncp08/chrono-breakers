@@ -314,12 +314,19 @@ local function requestBreak(player: Player, id: string)
 		if
 			not deps.MatchService.IsCurrentMatch(matchId)
 			or not current
-			or deps.StatusEffectService.IsRestrained(player)
 			or not deps.MatchService.IsActiveParticipant(player)
-			or distanceToObstacle(handle.spec, current.Position) > config.InteractRange + 1
 		then
+			return
+		end
+		local failure = if deps.StatusEffectService.IsRestrained(player)
+			then Protocol.Codes.Restrained
+			elseif
+				distanceToObstacle(handle.spec, current.Position) > config.InteractRange + 1
+			then Protocol.Codes.OutOfRange
+			else nil
+		if failure then
 			deps.StatusEffectService.Remove(player, "channel")
-			return reject(player, Protocol.Codes.Restrained)
+			return reject(player, failure)
 		end
 		if objects:breakBarrier(id) then
 			deps.WorldService.SetBarrierState(id, "Broken")

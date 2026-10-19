@@ -26,6 +26,8 @@ local ORDER = {
 	"UIController",
 	"EffectsController",
 	"InteractionController",
+	"PursuitController",
+	"AtmosphereController",
 }
 
 local registry: { [string]: any } = {}

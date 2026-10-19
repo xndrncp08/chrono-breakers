@@ -43,6 +43,12 @@ function StateSync.Start(deps: { [string]: any })
 			-- New match (or back to lobby): forget per-match client state.
 			ClientState.set("abilities", {})
 			ClientState.set("extraction", 0)
+			ClientState.set("calibration", nil)
+			ClientState.set("action", nil)
+			ClientState.set("stamina", nil)
+			ClientState.set("chased", false)
+			ClientState.set("huntTargets", {})
+			ClientState.set("momentum", 0)
 		end
 		if type(snapshot.version) == "number" and snapshot.version < lastVersion then
 			return -- stale snapshot
@@ -108,14 +114,38 @@ function StateSync.Start(deps: { [string]: any })
 		if type(payload) ~= "table" then
 			return
 		end
+		local snapshot = ClientState.get("snapshot")
+		local stale = payload.matchId ~= nil and snapshot ~= nil and payload.matchId ~= snapshot.matchId
 		if payload.kind == "Movement" then
 			ClientState.set("movement", payload)
+		elseif stale then
+			return
 		elseif payload.kind == "Extraction" and type(payload.progress) == "number" then
-			local snapshot = ClientState.get("snapshot")
-			if snapshot and payload.matchId ~= snapshot.matchId then
-				return
-			end
 			ClientState.set("extraction", payload.progress)
+		elseif payload.kind == "Calibration" and type(payload.challenge) == "table" then
+			ClientState.set("calibration", { terminalId = payload.terminalId, challenge = payload.challenge })
+		elseif payload.kind == "CalibrationResult" and type(payload.grade) == "string" then
+			ClientState.set("calibration", nil)
+			ClientState.set("calibrationResult", { grade = payload.grade, at = os.clock() })
+		elseif payload.kind == "Action" then
+			if payload.active then
+				ClientState.set("action", {
+					action = payload.action,
+					target = payload.target,
+					startedAt = payload.startedAt,
+					duration = payload.duration,
+				})
+			else
+				ClientState.set("action", nil)
+			end
+		elseif payload.kind == "Stamina" and type(payload.value) == "number" then
+			ClientState.set("stamina", payload)
+		elseif payload.kind == "Chase" then
+			ClientState.set("chased", payload.chased == true)
+		elseif payload.kind == "Hunt" and type(payload.targets) == "table" then
+			ClientState.set("huntTargets", payload.targets)
+		elseif payload.kind == "Momentum" and type(payload.value) == "number" then
+			ClientState.set("momentum", payload.value)
 		end
 	end)
 

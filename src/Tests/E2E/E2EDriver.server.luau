@@ -163,6 +163,23 @@ local function terminalState(id: string): string?
 	return snap and snap.state
 end
 
+-- Answers the player's Calibration Pulses at the leading edge of the arc (Great) until `stop()`.
+-- Goes through MatchDirector.respondChallenge, the same entry point the remote handler uses.
+local function autoCalibrate(player: Player, stop: () -> boolean)
+	task.spawn(function()
+		local d = MatchService.GetDirector()
+		while not stop() do
+			local session = d.session
+			local pending = session and session.challenges[player.UserId]
+			local now = Workspace:GetServerTimeNow()
+			if pending and now >= pending.check.opensAt + 0.02 then
+				d:respondChallenge(player.UserId, session.matchId, pending.terminalId, pending.check.nonce, now, now)
+			end
+			task.wait(0.03)
+		end
+	end)
+end
+
 local function hackToCompletion(player: Player, id: string, label: string)
 	moveToTerminal(player, id)
 	local pressed = client(player, "prompt", { terminal = `Terminal_{id}` })
@@ -174,12 +191,34 @@ local function hackToCompletion(player: Player, id: string, label: string)
 		end, 3),
 		terminalState(id)
 	)
+	local done = false
+	autoCalibrate(player, function()
+		return done
+	end)
 	check(
-		`{label}: terminal completes after ~15 s`,
+		`{label}: terminal completes (calibrated)`,
 		waitFor(function()
 			return terminalState(id) == "Completed"
-		end, 20),
+		end, 60),
 		terminalState(id)
+	)
+	done = true
+end
+
+-- Powers the first Gate Relay through its real ProximityPrompt and waits for the gate.
+local function powerRelay(player: Player, label: string)
+	local relay = WorldService.GetRelays().R1
+	moveTo(player, MapValidator.interactionPoint(WorldService.GetMap().relays[1]))
+	task.wait(0.4)
+	local pressed = client(player, "prompt", { path = relay.prompt:GetFullName() })
+	check(`{label}: relay prompt pressed`, pressed == "pressed", pressed)
+	local gate = (Workspace :: any).ChronoBreakers.Vault.Static.BreachGate :: BasePart
+	check(
+		`{label}: relay powers the Breach Gate open`,
+		waitFor(function()
+			return gate:GetAttribute("Open") == true and gate.CanCollide == false
+		end, 16),
+		gate:GetAttribute("Open")
 	)
 end
 
@@ -570,7 +609,7 @@ local function runMatchOne(player: Player)
 		place(caster, Vector3.new(0, 0, 89), 18)
 	)
 
-	-- 12. Complete all three terminals -> extraction
+	-- 12. Complete four of five terminals -> Temporal Collapse -> power a relay
 	check(
 		"hack: Archive resumable after interruptions",
 		waitFor(function()
@@ -581,15 +620,18 @@ local function runMatchOne(player: Player)
 	hackToCompletion(player, "ArchiveTerminal", "Archive")
 	hackToCompletion(player, "ReactorTerminal", "Reactor")
 	hackToCompletion(player, "ObservatoryTerminal", "Observatory")
+	hackToCompletion(player, "WestTerminal", "West Hall")
 	check(
-		"extraction: phase entered after 3 hacks",
+		"extraction: Collapse entered after 4 hacks",
 		waitFor(function()
 			return d:getPhase() == "Extraction"
 		end, 3),
 		d:getPhase()
 	)
 	local gate = (Workspace :: any).ChronoBreakers.Vault.Static.BreachGate :: BasePart
-	check("extraction: gate opened (non-colliding)", gate:GetAttribute("Open") == true and gate.CanCollide == false)
+	check("extraction: gate stays sealed until a relay is powered", gate:GetAttribute("Open") ~= true)
+	check("extraction: fifth terminal locked", terminalState("EastTerminal") == "Locked", terminalState("EastTerminal"))
+	powerRelay(player, "extraction")
 	snap = client(player, "snapshot")
 	check("client: extraction visible in HUD", snap and snap.phase == "Extraction")
 
@@ -627,7 +669,7 @@ local function runMatchOne(player: Player)
 		snap and snap.result and snap.result.won == true and snap.result.lines >= 3,
 		snap and snap.result
 	)
-	local expected = 20 + 50 + 3 * 15 + 40
+	local expected = 20 + 50 + 4 * 15 + 40
 	check(
 		`rewards: payout = {expected}`,
 		snap and snap.result and snap.result.total == expected,
@@ -1053,7 +1095,8 @@ local function runMultiplayer(a: Player, b: Player)
 		walkSpeed(infiltrator)
 	)
 
-	-- 8. Chrono Strike: damage interrupts hacking, three strikes eliminate, credit to Keeper
+	-- 8. Chrono Strike: a hit Fractures and interrupts hacking; a second Desyncs the last free
+	-- Infiltrator, which ends the match (nobody left to rescue). Credit goes to the Keeper.
 	moveToTerminal(infiltrator, "ArchiveTerminal")
 	local pressed = client(infiltrator, "prompt", { terminal = "Terminal_ArchiveTerminal" })
 	check("strike: Infiltrator started a hack", pressed == "pressed" and waitFor(function()
@@ -1084,12 +1127,18 @@ local function runMultiplayer(a: Player, b: Player)
 
 	check("strike: accepted", hit1 and hit1[1] and hit1[1].ok == true, codes(hit1))
 	check(
-		"strike: 34 damage applied",
+		"strike: wind-up resolves to Fractured (health mirrors half)",
 		waitFor(function()
 			local h = humanoidOf(infiltrator)
-			return h ~= nil and near(h.Health, h.MaxHealth - 34, 0.5)
-		end, 1),
-		humanoidOf(infiltrator) and (humanoidOf(infiltrator) :: Humanoid).Health
+			return d:getCondition(infiltrator.UserId) == "Injured"
+				and h ~= nil
+				and near(h.Health, h.MaxHealth * 0.5, 0.5)
+		end, 1.5),
+		d:getCondition(infiltrator.UserId)
+	)
+	check(
+		"strike: victim escape burst and Keeper recoil applied",
+		StatusEffectService.Has(infiltrator, "Haste") and StatusEffectService.Has(keeper, "Slow")
 	)
 	check(
 		"strike: damage interrupted the hack",
@@ -1099,19 +1148,19 @@ local function runMultiplayer(a: Player, b: Player)
 		terminalState("ArchiveTerminal")
 	)
 	task.wait(1.3)
-	client(
+	moveFacing(
 		keeper,
-		"fire",
-		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.3 }
+		(rootOf(infiltrator) :: BasePart).Position + Vector3.new(0, 0, 4),
+		(rootOf(infiltrator) :: BasePart).Position
 	)
-	task.wait(1.3)
+	task.wait(0.2)
 	client(
 		keeper,
 		"fire",
-		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.3 }
+		{ remote = "AbilityRequest", args = { "ChronoStrike", { ["$nil"] = true }, aim } :: { any }, collect = 0.5 }
 	)
 	check(
-		"elimination: third strike eliminates the Infiltrator",
+		"elimination: second strike Desyncs the last free Infiltrator, who is erased",
 		waitFor(function()
 			local p = d:getParticipant(infiltrator.UserId)
 			return p ~= nil and p.status == "Eliminated"
@@ -1377,40 +1426,52 @@ local function runSquad(players: { Player })
 		return p ~= nil and p.status == "Disconnected"
 	end, 3) and d:getPhase() == "Active", d:getPhase())
 
-	-- B finishes Reactor, then resumes Archive and Observatory from the retained progress.
+	-- B finishes Reactor, then resumes Archive and Observatory from the retained progress and
+	-- breaches a fourth terminal. B answers every Calibration Pulse.
+	local squadDone = false
+	autoCalibrate(b, function()
+		return squadDone
+	end)
 	check(
 		"squad: Reactor completes",
 		waitFor(function()
 			return terminalState("ReactorTerminal") == "Completed"
-		end, 20),
+		end, 60),
 		terminalState("ReactorTerminal")
 	)
-	for _, id in { "ArchiveTerminal", "ObservatoryTerminal" } do
+	for _, id in { "ArchiveTerminal", "ObservatoryTerminal", "WestTerminal" } do
 		local before = (d:publicTerminal(id) :: any).progress
 		waitFor(function()
 			return terminalState(id) == "Available"
 		end, 3)
 		moveToTerminal(b, id)
 		client(b, "prompt", { terminal = `Terminal_{id}` })
-		check(`squad: teammate resumes {id} from {math.floor(before * 100)}%`, before > 0 and waitFor(function()
-			local t = d:publicTerminal(id)
-			return t ~= nil and t.state == "Hacking" and t.hackerUserId == b.UserId
-		end, 3), d:publicTerminal(id))
+		check(
+			`squad: teammate resumes {id} from {math.floor(before * 100)}%`,
+			(before > 0 or id == "WestTerminal")
+				and waitFor(function()
+					local t = d:publicTerminal(id)
+					return t ~= nil and t.state == "Hacking" and t.hackerUserId == b.UserId
+				end, 3),
+			d:publicTerminal(id)
+		)
 		check(
 			`squad: {id} completes`,
 			waitFor(function()
 				return terminalState(id) == "Completed"
-			end, 20),
+			end, 60),
 			terminalState(id)
 		)
 	end
+	squadDone = true
 	check(
-		"squad: extraction opens",
+		"squad: Temporal Collapse opens",
 		waitFor(function()
 			return d:getPhase() == "Extraction"
 		end, 2),
 		d:getPhase()
 	)
+	powerRelay(b, "squad")
 	local scrapBefore: { [number]: number } = {}
 	for _, p in Players:GetPlayers() do
 		scrapBefore[p.UserId] = (PlayerDataService.GetProfile(p) :: any).ChronosScrap
@@ -1552,7 +1613,7 @@ local function runExpansion(players: { Player })
 			humanoid.MaxHealth == class.MaxHealth and near(humanoid.WalkSpeed, class.WalkSpeed)
 		)
 		if classId == "ChronoMedic" then
-			humanoid.Health = humanoid.MaxHealth - 40
+			director:strike(actor.UserId, keeper.UserId, Workspace:GetServerTimeNow())
 		end
 		if classId == "Disruptor" then
 			waitFor(function()
@@ -1565,7 +1626,6 @@ local function runExpansion(players: { Player })
 				client(keeper, "fire", { remote = "AbilityRequest", args = { "TemporalTrap", site }, collect = 0.2 })
 			check("expansion: Keeper plants EMP target", hasCode(placed, "Ok"), codes(placed))
 		end
-		local healthBefore = humanoid.Health
 		local cast = client(actor, "fire", { remote = "AbilityRequest", args = { class.AbilityId }, collect = 0.2 })
 		check(`expansion: {class.AbilityId} accepted`, hasCode(cast, "Ok"), codes(cast))
 		if classId == "Ghost" then
@@ -1578,7 +1638,12 @@ local function runExpansion(players: { Player })
 		elseif classId == "Engineer" then
 			check("expansion: Overclock status active", StatusEffectService.Has(actor, "Overclock"))
 		elseif classId == "ChronoMedic" then
-			check("expansion: Mend heals real Humanoid", near(humanoid.Health, healthBefore + 28))
+			local vital = (director.session :: any).survival:get(actor.UserId)
+			check(
+				"expansion: Mend surges Patch progress",
+				vital ~= nil and near(vital.heal, 0.5, 0.02),
+				vital and vital.heal
+			)
 		elseif classId == "Phantom" then
 			check("expansion: Slipstream uses class baseline", near(humanoid.WalkSpeed, class.WalkSpeed * 2))
 		else
@@ -1604,21 +1669,25 @@ local function runExpansion(players: { Player })
 			check("expansion: teammate assists", (MatchService.RequestHack(team[2], id)))
 		end
 		local session = director.session :: any
-		local challenge = session.challenges[id]
-		check("expansion: challenge issued", challenge ~= nil)
-		if challenge then
+		waitFor(function()
+			return session.challenges[actor.UserId] ~= nil
+		end, 12)
+		local pending = session.challenges[actor.UserId]
+		check("expansion: calibration pulse issued", pending ~= nil and pending.terminalId == id)
+		if pending then
+			local check_ = pending.check
 			waitFor(function()
-				return Workspace:GetServerTimeNow() >= challenge.opensAt + 0.05
+				return Workspace:GetServerTimeNow() >= check_.opensAt + 0.01
 			end, 4)
 			local request = {
 				remote = "HackChallengeRequest",
-				args = { session.matchId, id, challenge.nonce, challenge.answer },
+				args = { session.matchId, id, check_.nonce, Workspace:GetServerTimeNow() },
 				collect = 0.1,
 			}
 			local response = client(actor, "fire", request)
-			check("expansion: challenge accepted through remote", hasCode(response, "Ok"), codes(response))
+			check("expansion: calibration press accepted through remote", hasCode(response, "Ok"), codes(response))
 			response = client(actor, "fire", request)
-			check("expansion: challenge replay rejected", hasCode(response, "StaleRequest"), codes(response))
+			check("expansion: calibration replay rejected", hasCode(response, "StaleRequest"), codes(response))
 		end
 		MatchService.CancelHack(actor, "Cancelled")
 		local safe = (rootOf(actor) :: BasePart).Position

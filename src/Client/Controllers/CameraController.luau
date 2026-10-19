@@ -175,8 +175,89 @@ function CameraController.Init()
 	end)
 end
 
+local function characterRoot(userId: number?): BasePart?
+	local other = if userId then Players:GetPlayerByUserId(userId) else nil
+	local character = other and other.Character
+	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function releaseAfter(seconds: number)
+	local token = generation
+	task.delay(seconds, function()
+		if token == generation then
+			stopCinematic()
+			applySubject()
+		end
+	end)
+end
+
+-- Short outcome sequences: an erased Infiltrator's camera tears away upward; the match result is
+-- framed on the escape pad (Infiltrators) or on the Time-Keeper (Keeper victory).
+local function playErasure()
+	local root = characterRoot(player.UserId)
+	local camera = Workspace.CurrentCamera
+	if root and camera then
+		playCinematic(
+			"Erasure",
+			camera.CFrame,
+			CFrame.lookAt(root.Position + Vector3.new(4, 26, 4), root.Position),
+			1.8
+		)
+		releaseAfter(2.2)
+	end
+end
+
+local function playOutcome(result: any)
+	local camera = Workspace.CurrentCamera
+	if not camera or type(result) ~= "table" or result.reason == "Aborted" then
+		return
+	end
+	if result.winner == "TimeKeeper" then
+		local snapshot = ClientState.get("snapshot")
+		local keeperId: number? = nil
+		for _, p in (if snapshot then snapshot.participants else {}) do
+			if p.role == "TimeKeeper" then
+				keeperId = p.userId
+			end
+		end
+		local root = characterRoot(keeperId)
+		if root then
+			local focus = root.Position + Vector3.new(0, 1.5, 0)
+			playCinematic(
+				"Outcome",
+				CFrame.lookAt(focus + Vector3.new(10, 3, 10), focus),
+				CFrame.lookAt(focus + Vector3.new(-9, 5, 11), focus),
+				3
+			)
+			releaseAfter(3.3)
+		end
+	elseif result.winner == "Infiltrators" then
+		local world = Workspace:FindFirstChild("ChronoBreakers")
+		local pad = world and world:FindFirstChild("ExtractionPad", true) :: BasePart?
+		if pad then
+			local focus = pad.Position
+			playCinematic(
+				"Outcome",
+				CFrame.lookAt(focus + Vector3.new(0, 14, -30), focus),
+				CFrame.lookAt(focus + Vector3.new(0, 40, -10), focus),
+				3
+			)
+			releaseAfter(3.3)
+		end
+	end
+end
+
 function CameraController.Start()
+	ClientState.changed:Connect(function(key: string, value: any)
+		if key == "result" and value ~= nil then
+			playOutcome(value)
+		end
+	end)
 	Net.on(RemoteNames.Effect, function(payload: any)
+		if type(payload) == "table" and payload.kind == "PlayerEliminated" and payload.userId == player.UserId then
+			playErasure()
+			return
+		end
 		if type(payload) ~= "table" or payload.kind ~= "PlayerExtracted" or payload.userId ~= player.UserId then
 			return
 		end
@@ -186,8 +267,8 @@ function CameraController.Start()
 			playCinematic(
 				"Extraction",
 				camera.CFrame,
-				CFrame.lookAt(root.Position + Vector3.new(12, 10, 12), root.Position),
-				0.8
+				CFrame.lookAt(root.Position + Vector3.new(6, 30, 6), root.Position),
+				1.1
 			)
 			local token = generation
 			task.delay(1.1, function()

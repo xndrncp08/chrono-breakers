@@ -35,6 +35,9 @@ local lastAimValid = false
 local onFeedback: ((code: string) -> ())? = nil
 
 local CANCEL_HACK_ACTION = "ChronoCancelHack"
+local SPRINT_ACTION = "ChronoSprint"
+local CALIBRATE_ACTION = "ChronoCalibrate"
+local sprintWanted = false
 local CONFIRM_ACTION = "ChronoConfirmTarget"
 local CANCEL_TARGET_ACTION = "ChronoCancelTarget"
 
@@ -368,6 +371,55 @@ function InputController.SetHackCancelBound(bound: boolean)
 	end
 end
 
+-- Sprint intent; the server decides whether stamina allows it.
+function InputController.SetSprint(wanted: boolean)
+	if wanted == sprintWanted then
+		return
+	end
+	sprintWanted = wanted
+	if not wanted or ClientState.canAct() then
+		Net.send(RemoteNames.SprintRequest, wanted)
+	end
+end
+
+function InputController.IsSprinting(): boolean
+	return sprintWanted
+end
+
+-- Presses the pending Calibration Pulse with the synchronised press time (judged by the server).
+function InputController.PressCalibration()
+	local pending = ClientState.get("calibration")
+	local snapshot = ClientState.get("snapshot")
+	if not pending or not snapshot then
+		return
+	end
+	Net.send(
+		RemoteNames.HackChallengeRequest,
+		snapshot.matchId,
+		pending.terminalId,
+		pending.challenge.nonce,
+		ClientState.now()
+	)
+	ClientState.set("calibration", nil)
+end
+
+-- While a pulse is pending, Space / A (and the on-screen ring) press it instead of jumping.
+function InputController.SetCalibrationBound(bound: boolean)
+	if bound then
+		ContextActionService:BindActionAtPriority(CALIBRATE_ACTION, function(_, state)
+			if ClientState.get("modal") or UserInputService:GetFocusedTextBox() then
+				return Enum.ContextActionResult.Pass
+			end
+			if state == Enum.UserInputState.Begin then
+				InputController.PressCalibration()
+			end
+			return Enum.ContextActionResult.Sink
+		end, false, Enum.ContextActionPriority.High.Value, Enum.KeyCode.Space, Enum.KeyCode.ButtonA)
+	else
+		ContextActionService:UnbindAction(CALIBRATE_ACTION)
+	end
+end
+
 function InputController.SetFeedbackHandler(handler: (code: string) -> ())
 	onFeedback = handler
 end
@@ -383,6 +435,21 @@ function InputController.Init()
 	ClientState.observe("modal", function(name)
 		if name then
 			InputController.CancelTargeting()
+		end
+	end)
+	ContextActionService:BindAction(SPRINT_ACTION, function(_, state)
+		if state == Enum.UserInputState.Begin then
+			if ClientState.canAct() and not ClientState.get("modal") and not UserInputService:GetFocusedTextBox() then
+				InputController.SetSprint(true)
+			end
+		elseif state == Enum.UserInputState.End or state == Enum.UserInputState.Cancel then
+			InputController.SetSprint(false)
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.KeyCode.LeftShift, Enum.KeyCode.ButtonL3)
+	ClientState.changed:Connect(function(key: string)
+		if key == "snapshot" and sprintWanted and not ClientState.canAct() then
+			InputController.SetSprint(false)
 		end
 	end)
 	ContextActionService:BindAction("ChronoTeamPing", function(_, state)

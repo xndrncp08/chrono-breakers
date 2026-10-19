@@ -1,0 +1,17 @@
+Survival Protocol automated evidence — 2026-10-19T04:40Z
+Commands: ./tools/test.sh; ./tools/analyze.sh; rojo build default.project.json; lune run tools/verify-build.luau
+
+Running 29 spec modules from build/test.rbxl
+
+215 passed, 0 failed
+== stylua --check
+== selene
+Results:
+0 errors
+0 warnings
+0 parse errors
+== luau-lsp analyze
+All static checks passed.
+Building project 'ChronoBreakers'
+Built project to game.rbxl
+Production artifact verified: 109 scripts compile; test code absent; LoadStringEnabled=false; 287143 bytes
