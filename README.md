@@ -1,13 +1,21 @@
 # Chrono Breakers: Temporal Heist
 
-Asymmetrical Roblox multiplayer game: **1 Time-Keeper vs. up to 4 Infiltrators**. Infiltrators hack
-three vault terminals, then race to the extraction pad; the Time-Keeper hunts them with Chrono Strike,
-Time-Freeze Zones, and Temporal Traps. Built with Luau (`--!strict`), Rojo, and a small
+Asymmetrical survival-horror heist for Roblox: **1 Time-Keeper vs. up to 4 Infiltrators**.
+Infiltrators breach four of five terminals under Calibration Pulses, break chases with sprints,
+vaults, Stasis Barriers and lockers, Re-sync and rescue each other from Stasis Pods, then power a
+Gate Relay and escape the Temporal Collapse. The Time-Keeper hunts with a telegraphed Chrono Strike,
+Phase-Locks the fallen, Overloads terminals and controls space with Freeze Zones, Traps and Pulses.
+Design: [SURVIVAL_DESIGN](docs/SURVIVAL_DESIGN.md). Built with Luau (`--!strict`), Rojo, and a small
 service/controller architecture with a pure, offline-tested gameplay core.
 
 > Working title — configurable in `src/Shared/Config/GameConfig.luau`.
 
 ## Status
+
+**Survival Protocol** implemented on top of the temporal expansion (integrity ladder, containment,
+pursuit, interactive hacking, environmental play, Collapse endgame, perks, survival HUD, atmosphere).
+Offline gates pass; Studio E2E, balance and device validation are pending —
+[SURVIVAL_RELEASE](docs/SURVIVAL_RELEASE.md).
 
 Temporal expansion implemented: four maps/voting, five free classes, co-op and interactive hacking,
 eight anomalies, Keeper tracking, XP/mastery/calendar contracts/cosmetics, team pings and refreshed
@@ -69,8 +77,11 @@ rojo serve default.project.json
 
 | Action | Keyboard/Mouse | Gamepad | Touch |
 | --- | --- | --- | --- |
-| Hack terminal | E (prompt) | X | tap prompt |
-| Cancel hack | C | B | Cancel button |
+| Hack / interact (Re-sync, Patch, Rescue, Vault, Barrier, Door, Locker, Relay) | E (prompt) | X | tap prompt |
+| Cancel hack or channel | C | B | Cancel button |
+| Sprint (Infiltrator) | hold Left Shift | hold L3 | hold SPRINT |
+| Calibration Pulse | Space | A | tap the ring |
+| Phase-Lock / Overload / Break / Search (Keeper) | E (prompt) | X | tap prompt |
 | Chrono Strike (Keeper) | LMB | R2 | ability button |
 | Time-Freeze Zone (Keeper) | Q to aim, click to place, RMB cancel | L1, press again/R2, B cancel | button → Confirm |
 | Temporal Trap (Keeper) | F (aim/confirm like above) | Y | button → Confirm |
@@ -78,7 +89,6 @@ rojo serve default.project.json
 | Class skill (Infiltrator) | F | Y | class button |
 | Chrono Pulse (Keeper) | R | L2 | pulse button |
 | Team ping | G | R1 | Team ping button |
-| Optional hack challenge | 1 / 2 / 3 | D-pad left / up / right | answer buttons |
 
 ## Repository layout
 

@@ -1,13 +1,14 @@
 # Data Schema and Persistence
 
-## Profile (schema version 3) — `src/Server/Core/ProfileSchema.luau`
+## Profile (schema version 4) — `src/Server/Core/ProfileSchema.luau`
 | Field | Type | Default | Validation |
 | --- | --- | --- | --- |
-| SchemaVersion | number | 3 | migrations bring older data up; newer data → not loaded |
+| SchemaVersion | number | 4 | migrations bring older data up; newer data → not loaded |
 | ChronosScrap | integer | 0 | finite, floored, clamped to [0, 1e9] |
 | OwnedItems | {[itemId]=true} | default-owned items | only known ids with `true`; defaults always present |
 | Equipped | {Gadget, Trail, Class, Title} | Stabilizer, TrailCyan, Ghost, TitleRookie | must exist, match slot, and be owned; else default |
-| Stats | HackAssists, KeeperWins, MatchesPlayed, Wins, Losses, TerminalsHacked, Extractions, Eliminations, KeeperMatches, InfiltratorMatches | 0 | non-negative integers |
+| Stats | HackAssists, KeeperWins, MatchesPlayed, Wins, Losses, TerminalsHacked, Extractions, Eliminations, KeeperMatches, InfiltratorMatches, Rescues, Resyncs, Patches, Containments, Downs, GreatCalibrations | 0 | non-negative integers |
+| Perks | {[classId \| "TimeKeeper"] = {perkId}} | {} | known loadout keys only; ≤2 unique known perks; each must be unlocked (level or mastery, judged after progression is reconciled) and match the loadout's role/class |
 | Settings | SfxVolume, UiVolume, MusicVolume (0–1), ReducedMotion, ShowControlHints (bool), UIScale (0.8–1.25) | 0.8, 0.7, 0.5, false, true, 1 | per-key type/range |
 | RecentMatchIds | {string} | {} | ≤20 entries, ≤64 chars; reward idempotency ledger |
 
@@ -21,6 +22,8 @@ reopen an old period. Milestones grant only configured cosmetic items.
 - v1 → v2: `Scrap` → `ChronosScrap`, `Volume` → `Settings.SfxVolume`, `Items` array → `OwnedItems`
   map. (v1 is the prototype format; kept as the documented migration path.)
 - v2 → v3: additive defaults for classes/titles and progression; existing balance/items/stats/settings preserved.
+- v3 → v4: additive `Perks` loadouts and survival stats; everything else preserved. Deploy all
+  servers together: a v3 server treats a v4 profile as a future version (unsaved session).
 - Data with `SchemaVersion` greater than the server's is **not** loaded or overwritten: the server
   releases its lock and the player gets an unsaved session.
 

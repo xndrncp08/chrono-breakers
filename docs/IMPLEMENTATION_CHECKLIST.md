@@ -55,6 +55,16 @@ Status 2026-10-09: full server+client implemented; 133 Lune tests green; analyze
 - [ ] 4–5 player session
 - [x] Docs: README, GAME_DESIGN, ARCHITECTURE, NETWORK_CONTRACT, DATA_SCHEMA, TEST_PLAN, BALANCE, BUILD_AND_RUN, RELEASE_CHECKLIST
 
+## Survival Protocol
+- [x] Pure rules + specs: integrity ladder, pods/stages, rescue/Endurance, anti-camp, bleed-out, chase/momentum, stamina, calibration, Overload, relays/collapse, Slip Rift, world objects
+- [x] Maps: five terminals, pods, relays, lockers, rails, barriers, doors, loop gyms (validated, step height 2.2)
+- [x] Services: Survival, Interaction, Hunt, Perk; combat wind-up/recoil/combo; perk hooks
+- [x] Progression: schema v4 perk loadouts, survival stats/rewards/contracts, mastery cosmetics
+- [x] Client: survival HUD, calibration ring, pursuit/atmosphere controllers, prompts, inputs, perk UI, results, cinematics
+- [x] E2E driver updated for the new rules
+- [ ] BLOCKED: Studio E2E runs (Studio MCP unavailable this session) — see SURVIVAL_RELEASE gates
+- [ ] 1v4 balance playtests, device passes, music asset ids, DataStore v4 round trip
+
 ## Next actions (if resuming)
 Follow the open-issue table in [RELEASE_READINESS.md](RELEASE_READINESS.md): DataStore round trip in a
 separate test experience, Device Emulator + gamepad pass, player-perspective map review, a 4–5

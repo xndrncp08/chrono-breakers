@@ -1,5 +1,14 @@
 # Test Plan and Results
 
+## Survival Protocol validation (current)
+
+Offline: 215 Lune tests, static analysis and production build pass — see
+[SURVIVAL_RELEASE](SURVIVAL_RELEASE.md) and [evidence/survival-automated.txt](evidence/survival-automated.txt).
+New specs: `Unit/SurvivalModels`, `Unit/WorldObjects`, `Unit/Perks`, `Integration/Survival`;
+rewritten: `Unit/HackChallenge`, `Integration/ExpandedHacking`, contract and map validator specs.
+In-engine E2E (solo / 2-player / squad / expansion) was **updated but Not run**: the Studio MCP
+connection was unavailable in the implementing session. Results below predate the survival rules.
+
 ## Current expansion validation
 
 Current offline results, production artifact checks and precise unrun engine/device/persistence
