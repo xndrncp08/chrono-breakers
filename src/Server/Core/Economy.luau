@@ -47,6 +47,9 @@ function Economy.purchase(profile: Profile, itemId: any): (boolean, string)
 	if item == nil then
 		return false, "UnknownItem"
 	end
+	if item.Milestone then
+		return false, "Locked"
+	end
 	if profile.OwnedItems[itemId] then
 		return false, "AlreadyOwned"
 	end

@@ -20,6 +20,7 @@ local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 
 local MemoryDataStore = require(script.Parent.Parent.Core.MemoryDataStore)
+local Progression = require(script.Parent.Parent.Core.Progression)
 local ProfileSchema = require(script.Parent.Parent.Core.ProfileSchema)
 local ProfileStore = require(script.Parent.Parent.Core.ProfileStore)
 local ServerConfig = require(script.Parent.Parent.ServerConfig)
@@ -29,6 +30,8 @@ type SessionState = "Loading" | "Loaded" | "Unsaved" | "Released"
 
 type Session = {
 	profile: Profile,
+	token: string?,
+	closing: boolean,
 	state: SessionState,
 	dirty: boolean,
 	saving: boolean,
@@ -108,12 +111,13 @@ function PlayerDataService.BuildSnapshot(player: Player): GameTypes.ProfileSnaps
 	local p = session.profile
 	return {
 		loaded = session.state ~= "Loading",
-		persistent = session.state == "Loaded",
+		persistent = session.state == "Loaded" and not usingMemoryStore,
 		currency = p.ChronosScrap,
 		owned = table.clone(p.OwnedItems),
 		equipped = table.clone(p.Equipped),
 		stats = table.clone(p.Stats :: any),
 		settings = table.clone(p.Settings :: any),
+		progression = Progression.snapshot(p.Progression, os.time()),
 	}
 end
 
@@ -142,7 +146,7 @@ local function saveSession(player: Player, release: boolean)
 	end
 	session.saving = true
 	session.dirty = false
-	local status = (store :: ProfileStore.ProfileStore):save(player.UserId, session.profile, release)
+	local status = (store :: ProfileStore.ProfileStore):save(player.UserId, session.profile, release, session.token)
 	session.saving = false
 	if status ~= "Saved" then
 		session.dirty = true
@@ -150,6 +154,7 @@ local function saveSession(player: Player, release: boolean)
 		if status == "LockLost" then
 			-- Another server owns this profile now; stop writing to avoid clobbering it.
 			session.state = "Unsaved"
+			PlayerDataService.SendSnapshot(player)
 		end
 	end
 	if status == "Saved" then
@@ -162,6 +167,8 @@ end
 
 local function loadProfile(player: Player)
 	local session: Session = {
+		token = nil,
+		closing = false,
 		profile = ProfileSchema.defaults(),
 		state = "Loading",
 		dirty = false,
@@ -171,17 +178,18 @@ local function loadProfile(player: Player)
 	sessions[player] = session
 	PlayerDataService.SendSnapshot(player)
 
-	local status, profile = (store :: ProfileStore.ProfileStore):load(player.UserId)
+	local status, profile, token = (store :: ProfileStore.ProfileStore):load(player.UserId)
 	if player.Parent ~= Players then
 		-- Left while loading: release the lock we may have just taken.
 		if status == "Loaded" then
-			(store :: ProfileStore.ProfileStore):release(player.UserId)
+			(store :: ProfileStore.ProfileStore):release(player.UserId, token)
 		end
 		sessions[player] = nil
 		return
 	end
 	if status == "Loaded" and profile then
 		session.profile = profile
+		session.token = token
 		session.state = "Loaded"
 	else
 		session.state = "Unsaved"
@@ -215,6 +223,10 @@ function PlayerDataService.Start()
 		end
 	end
 	Players.PlayerRemoving:Connect(function(player)
+		local session = sessions[player]
+		if session then
+			session.closing = true
+		end
 		if shuttingDown then
 			return
 		end
@@ -242,6 +254,7 @@ function PlayerDataService.Start()
 		local pending = 0
 		for player, session in sessions do
 			if session.state == "Loaded" then
+				session.closing = true
 				pending += 1
 				task.spawn(function()
 					saveSession(player, true)
@@ -273,14 +286,14 @@ end
 
 function PlayerDataService.IsPersistent(player: Player): boolean
 	local session = sessions[player]
-	return session ~= nil and session.state == "Loaded"
+	return session ~= nil and session.state == "Loaded" and not usingMemoryStore
 end
 
 -- Applies a server-side mutation and returns (applied, callbackResult). The profile is marked dirty
 -- and a fresh snapshot is sent to the owner.
 function PlayerDataService.Mutate(player: Player, mutator: (Profile) -> any): (boolean, any)
 	local session = sessions[player]
-	if not session or session.state == "Loading" or session.state == "Released" then
+	if not session or session.closing or session.state == "Loading" or session.state == "Released" then
 		return false, nil
 	end
 	local result = mutator(session.profile)

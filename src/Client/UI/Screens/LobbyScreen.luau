@@ -7,6 +7,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
@@ -151,11 +152,21 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		end,
 		Parent = menu,
 	})
+	Button.new({
+		Text = "Career & Contracts",
+		Style = "Secondary",
+		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
+		LayoutOrder = 3,
+		OnActivated = function()
+			deps.UIController.OpenModal("Career")
+		end,
+		Parent = menu,
+	})
 	local spectateButton = Button.new({
 		Text = "Spectate",
 		Style = "Ghost",
 		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
-		LayoutOrder = 3,
+		LayoutOrder = 4,
 		OnActivated = function()
 			deps.AudioController.Play("UiClick")
 			if ClientState.get("spectating") then
@@ -253,6 +264,11 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 			return
 		end
 		currencyLabel.Text = `◆ {profile.currency} {RewardConfig.CurrencyShort}`
+		local title = ItemConfig.get(profile.equipped.Title or "TitleRookie")
+		nameLabel.Text = `{player.DisplayName} / {if title then title.DisplayName else "Recruit"}`
+		if profile.progression then
+			currencyLabel.Text ..= ` · LV {profile.progression.level}`
+		end
 		local s = profile.stats
 		statsLabel.Text = string.format(
 			"Matches %d  ·  Wins %d\nTerminals hacked %d  ·  Extractions %d\nEliminations %d",

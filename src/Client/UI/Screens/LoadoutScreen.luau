@@ -195,9 +195,9 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 				local short = item.Cost - profile.currency
 				card.status.Text = if short > 0 then `🔒 NEED {short} MORE` else "🔒 LOCKED"
 				card.status.TextColor3 = if short > 0 then Theme.Colors.TextMuted else Theme.Colors.Warning
-				card.button:SetText(`Buy · {item.Cost}`)
+				card.button:SetText(if item.Milestone then "Earn milestone" else `Buy · {item.Cost}`)
 				card.button:SetStyle("Temporal")
-				card.button:SetEnabled(short <= 0 and not inMatch)
+				card.button:SetEnabled(not item.Milestone and short <= 0 and not inMatch)
 			end
 		end
 	end

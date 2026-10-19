@@ -673,6 +673,11 @@ local function handleQueueRequest(player: Player, action: any, ...: any)
 			deps.NetworkService.Reject(player, "Queue", Protocol.Codes.InMatch)
 			return
 		end
+		local state = deps.PlayerDataService.GetState(player)
+		if state ~= "Loaded" and state ~= "Unsaved" then
+			deps.NetworkService.Reject(player, "Queue", Protocol.Codes.ProfileUnavailable)
+			return
+		end
 		if not isAlive(player) then
 			deps.NetworkService.Reject(player, "Queue", Protocol.Codes.NotAlive)
 			return
@@ -759,7 +764,11 @@ function MatchService.Init(injected: { [string]: any })
 		world = {
 			isEligibleForMatch = function(userId: number)
 				local player = playerById(userId)
-				return player ~= nil and player.Parent == Players
+				local state = if player then deps.PlayerDataService.GetState(player) else nil
+				return player ~= nil
+					and player.Parent == Players
+					and isAlive(player)
+					and (state == "Loaded" or state == "Unsaved")
 			end,
 			isAlive = function(userId: number)
 				local player = playerById(userId)

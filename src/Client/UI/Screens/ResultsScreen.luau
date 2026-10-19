@@ -53,14 +53,22 @@ function ResultsScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = body,
 	})
 
-	local left = Create("Frame", {
+	local left = Create("ScrollingFrame", {
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		BorderSizePixel = 0,
+		ScrollBarThickness = 3,
 		Name = "Rewards",
 		BackgroundTransparency = 1,
 		Position = UDim2.fromOffset(0, 80),
 		Size = UDim2.new(0.55, -8, 1, -140),
 		Parent = body,
 	}, { Style.list(Enum.FillDirection.Vertical, Theme.Spacing.XS) })
-	local right = Create("Frame", {
+	local right = Create("ScrollingFrame", {
+		AutomaticCanvasSize = Enum.AutomaticSize.Y,
+		CanvasSize = UDim2.new(),
+		BorderSizePixel = 0,
+		ScrollBarThickness = 3,
 		Name = "Players",
 		BackgroundTransparency = 1,
 		Position = UDim2.new(0.55, 8, 0, 80),
@@ -136,6 +144,7 @@ function ResultsScreen.new(parent: Instance, deps: { [string]: any })
 			line(left, `Eliminations: {result.stats.eliminations}`, nil, nil, nextOrder())
 		end
 		line(left, " ", nil, Theme.TextSize.Micro, nextOrder())
+		line(left, `+{result.xp or 0} XP / CLASS MASTERY`, Theme.Colors.Stable, Theme.TextSize.Body, nextOrder())
 		line(left, "REWARDS", Theme.Colors.TextSecondary, Theme.TextSize.Micro, nextOrder())
 		if #result.rewards == 0 then
 			line(left, "No rewards for this match.", Theme.Colors.TextMuted, nil, nextOrder())

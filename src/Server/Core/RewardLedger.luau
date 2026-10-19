@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
 
+local Progression = require(script.Parent.Progression)
 local Economy = require(script.Parent.Economy)
 local ProfileSchema = require(script.Parent.ProfileSchema)
 local RewardCalculator = require(script.Parent.RewardCalculator)
@@ -22,7 +23,7 @@ function RewardLedger.apply(
 	profile: ProfileSchema.Profile,
 	matchId: string,
 	breakdown: RewardCalculator.Breakdown
-): (boolean, number)
+): (boolean, number, { string }?)
 	if type(matchId) ~= "string" or #matchId == 0 then
 		return false, 0
 	end
@@ -43,7 +44,8 @@ function RewardLedger.apply(
 			stats[key] += math.floor(delta)
 		end
 	end
-	return true, granted
+	local bonus, notifications = Progression.apply(profile, breakdown)
+	return true, granted + bonus, notifications
 end
 
 return table.freeze(RewardLedger)
