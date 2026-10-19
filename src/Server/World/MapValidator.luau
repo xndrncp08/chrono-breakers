@@ -261,6 +261,19 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 
 		local closedGrid = MapValidator.buildGrid(map, false)
 		local reachableClosed = closedGrid.reachableFrom(map.infiltratorSpawns[1])
+		for i, spawn in map.infiltratorSpawns do
+			if not reachableClosed(spawn) then
+				fail(`infiltrator spawn {i} inaccessible before extraction`)
+			end
+		end
+		for _, terminal in map.terminals do
+			if not reachableClosed(MapValidator.interactionPoint(terminal)) then
+				fail(`terminal {terminal.id} inaccessible before extraction`)
+			end
+		end
+		if not reachableClosed(map.keeperSpawn) then
+			fail("keeper inaccessible before extraction")
+		end
 		if reachableClosed(map.extractionCenter) then
 			fail("extraction pad is reachable while the gate is closed")
 		end

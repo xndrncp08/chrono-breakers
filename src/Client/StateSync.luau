@@ -91,6 +91,10 @@ function StateSync.Start(deps: { [string]: any })
 		if type(payload) ~= "table" or type(payload.abilities) ~= "table" then
 			return
 		end
+		local snapshot = ClientState.get("snapshot")
+		if snapshot and payload.matchId ~= snapshot.matchId then
+			return
+		end
 		local map = {}
 		for _, state in payload.abilities do
 			if type(state) == "table" and type(state.abilityId) == "string" then
@@ -107,6 +111,10 @@ function StateSync.Start(deps: { [string]: any })
 		if payload.kind == "Movement" then
 			ClientState.set("movement", payload)
 		elseif payload.kind == "Extraction" and type(payload.progress) == "number" then
+			local snapshot = ClientState.get("snapshot")
+			if snapshot and payload.matchId ~= snapshot.matchId then
+				return
+			end
 			ClientState.set("extraction", payload.progress)
 		end
 	end)

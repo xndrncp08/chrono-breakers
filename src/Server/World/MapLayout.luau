@@ -423,6 +423,8 @@ local function buildAlternative(id: string, name: string, structures: { { any } 
 	local map: MapDefinition = table.clone(original)
 	map.name = name
 	map.boxes = boxes
+	map.infiltratorSpawns =
+		{ Vector3.new(-76, 3, 50), Vector3.new(-66, 3, 50), Vector3.new(-76, 3, 60), Vector3.new(-66, 3, 60) }
 	map.extractionSize = Vector3.new(24, 12, 16)
 	map.terminals = {
 		{

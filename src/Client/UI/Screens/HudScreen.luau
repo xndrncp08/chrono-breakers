@@ -141,6 +141,17 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = objectives,
 	})
 
+	local pingButton = Button.new({
+		Text = "Team ping / G · R1",
+		Style = "Secondary",
+		Size = UDim2.new(1, 0, 0, 48),
+		LayoutOrder = 5,
+		OnActivated = function()
+			deps.InputController.Ping()
+		end,
+		Parent = objectives,
+	})
+
 	-- Team status (top right)
 	local team = Style.panel({
 		Name = "Team",
@@ -367,6 +378,7 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		if not snapshot then
 			return
 		end
+		pingButton.Instance.Visible = role ~= nil and role.role == "Infiltrator"
 		if role then
 			local color = (Theme.RoleColors :: any)[role.role] or Theme.Colors.Stable
 			local class = ClassConfig.get(role.classId)

@@ -64,7 +64,9 @@ function NetworkService.OnRequest(name: string, handler: Handler, rateKey: strin
 	remote.OnServerEvent:Connect(function(player: Player, ...: any)
 		if not limiter:allow(player.UserId, key, now()) then
 			security.Report(player, "RateLimited", name)
-			NetworkService.Reject(player, name, Protocol.Codes.RateLimited)
+			if limiter:allow(player.UserId, "RateNotice", now()) then
+				NetworkService.Reject(player, name, Protocol.Codes.RateLimited)
+			end
 			return
 		end
 		local args = table.pack(...)

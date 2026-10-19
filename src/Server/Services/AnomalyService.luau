@@ -92,6 +92,9 @@ local function makePortal(position: Vector3, destination: Vector3, event: Anomal
 	prompt.RequiresLineOfSight = true
 	prompt.Parent = pad
 	prompt.Triggered:Connect(function(player: Player)
+		if not deps.SecurityService.ValidatePosition(player) then
+			return
+		end
 		if not deps.NetworkService.Allow(player, "PortalPrompt") then
 			return
 		end

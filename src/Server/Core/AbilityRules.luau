@@ -5,6 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 
 export type CasterContext = {
+	matchId: string?,
+	currentMatchId: string?,
 	abilityId: any, -- untrusted
 	phase: string,
 	role: string?, -- nil when not a participant
@@ -30,6 +32,9 @@ function AbilityRules.checkCaster(ctx: CasterContext): (boolean, string)
 	local definition = AbilityConfig.get(ctx.abilityId)
 	if definition == nil then
 		return false, "InvalidPayload"
+	end
+	if ctx.currentMatchId and ctx.matchId ~= ctx.currentMatchId then
+		return false, "StaleRequest"
 	end
 	if not CASTABLE_PHASES[ctx.phase] then
 		return false, "WrongPhase"

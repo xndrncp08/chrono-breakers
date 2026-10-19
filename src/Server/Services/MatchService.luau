@@ -327,6 +327,7 @@ local function onMatchActive(payload: any)
 		return
 	end
 	for _, player in MatchService.GetParticipants() do
+		deps.SecurityService.ResetMovement(player)
 		deps.StatusEffectService.Remove(player, "intro")
 		local role = d:getRole(player.UserId)
 		if role == "TimeKeeper" then
@@ -457,6 +458,7 @@ local function onExtractionChannel(payload: any)
 	if player then
 		deps.NetworkService.FireClient(RemoteNames.StatusUpdate, player, {
 			kind = "Extraction",
+			matchId = payload.matchId,
 			progress = payload.progress,
 		})
 	end
@@ -635,6 +637,9 @@ end
 ---------------------------------------------------------------------------
 
 function MatchService.RequestHack(player: Player, terminalId: string): (boolean, string)
+	if not deps.SecurityService.ValidatePosition(player) then
+		return false, Protocol.Codes.OutOfRange
+	end
 	local ok, code = getDirector():requestHackStart(player.UserId, terminalId, now())
 	if ok then
 		deps.StatusEffectService.Remove(player, "veil")
@@ -782,7 +787,15 @@ function MatchService.Init(injected: { [string]: any })
 				local player = playerById(userId)
 				local terminal = deps.WorldService.GetTerminal(terminalId)
 				local root = if player then getRoot(player) else nil
-				if not root or not terminal then
+				if not root or not terminal or not player or not deps.SecurityService.ValidatePosition(player) then
+					return nil
+				end
+				if
+					not deps.WorldService.HasLineOfSight(
+						root.Position,
+						terminal.position + terminal.console.CFrame.LookVector * 1.5
+					)
+				then
 					return nil
 				end
 				return (root.Position - terminal.position).Magnitude
@@ -790,7 +803,10 @@ function MatchService.Init(injected: { [string]: any })
 			isInExtractionZone = function(userId: number)
 				local player = playerById(userId)
 				local root = if player then getRoot(player) else nil
-				return root ~= nil and deps.WorldService.IsInsideExtraction(root.Position)
+				return root ~= nil
+					and player ~= nil
+					and deps.SecurityService.ValidatePosition(player)
+					and deps.WorldService.IsInsideExtraction(root.Position)
 			end,
 			hackSpeed = function(userId: number)
 				local player = playerById(userId)
@@ -819,6 +835,56 @@ function MatchService.Start()
 
 	deps.NetworkService.OnRequest(RemoteNames.QueueRequest, handleQueueRequest)
 	deps.NetworkService.OnRequest(RemoteNames.ClientReady, handleClientReady)
+	deps.NetworkService.OnRequest(RemoteNames.PingRequest, function(player: Player, matchId: any, ...: any)
+		if select("#", ...) > 0 or not Validate.isShortString(matchId, 64) then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.InvalidPayload)
+			return
+		end
+		if not MatchService.IsCurrentMatch(matchId) then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.StaleRequest)
+			return
+		end
+		local phase = MatchService.GetPhase()
+		if
+			(phase ~= "Active" and phase ~= "Extraction")
+			or not MatchService.IsActiveParticipant(player)
+			or MatchService.GetRole(player) ~= "Infiltrator"
+			or not isAlive(player)
+		then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.WrongRole)
+			return
+		end
+		if not deps.SecurityService.ValidatePosition(player) then
+			return
+		end
+		local root = getRoot(player) :: BasePart
+		local humanoid = (player.Character :: Model):FindFirstChildOfClass("Humanoid") :: Humanoid
+		local label = if humanoid.Health < humanoid.MaxHealth / 2
+			then "Needs healing"
+			elseif d:getHackingTerminal(player.UserId) then "Assist this hack"
+			else "Rally here"
+		local nearest = ""
+		for _, terminal in deps.WorldService.GetTerminals() do
+			if (root.Position - terminal.position).Magnitude <= 18 then
+				nearest = ` / {terminal.name}`
+				break
+			end
+		end
+		local recipients = {}
+		for _, teammate in MatchService.GetParticipants() do
+			if MatchService.GetRole(teammate) == "Infiltrator" then
+				table.insert(recipients, teammate)
+			end
+		end
+		deps.NetworkService.FireList(RemoteNames.Effect, recipients, {
+			kind = "TeamPing",
+			matchId = matchId,
+			position = root.Position,
+			userId = player.UserId,
+			label = `{displayName(player.UserId)}: {label}{nearest}`,
+			duration = 6,
+		})
+	end)
 	deps.NetworkService.OnRequest(RemoteNames.MapVoteRequest, function(player: Player, mapId: any, ...: any)
 		if select("#", ...) > 0 or not Validate.isShortString(mapId, 32) then
 			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.InvalidPayload)

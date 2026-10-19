@@ -99,6 +99,19 @@ return function(t: any)
 			t.expect(#errors).toBeGreaterThan(1)
 		end)
 
+		t.it("rejects spawns stranded behind a closed extraction gate", function()
+			local map = TableUtil.deepCopy(MapLayout.Maps.Metropolis)
+			map.infiltratorSpawns[2] = Vector3.new(-70, 3, 80)
+			local errors = MapValidator.validate(map, 3)
+			local found = false
+			for _, message in errors do
+				if string.find(message, "inaccessible before extraction", 1, true) then
+					found = true
+				end
+			end
+			t.expect(found).toBe(true)
+		end)
+
 		t.it("detects too few terminals and duplicate ids", function()
 			local map = TableUtil.deepCopy(MapLayout.Vault)
 			map.terminals[2].id = map.terminals[1].id

@@ -5,6 +5,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local ServerConfig = require(game:GetService("ServerScriptService").Server.ServerConfig)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 
@@ -15,6 +16,9 @@ return function(t: any)
 			for _, spec in RemoteNames.Specs do
 				t.expect(seen[spec.Name]).toBeNil()
 				seen[spec.Name] = true
+				if spec.Direction == "ClientToServer" then
+					t.expect((ServerConfig.RateLimits :: any)[spec.Name] ~= nil).toBe(true)
+				end
 				t.expect((RemoteNames :: any)[spec.Name]).toBe(spec.Name)
 			end
 		end)

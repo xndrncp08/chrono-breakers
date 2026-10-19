@@ -94,6 +94,10 @@ local function client(player: Player, cmd: string, args: any?, timeout: number?)
 	end
 	local reply = replies[id]
 	replies[id] = nil
+	-- Legacy geometry assertions run on the Vault; the expansion suite overrides this ballot explicitly.
+	if reply.ok and cmd == "fire" and args and args.remote == "QueueRequest" and args.args[1] == "Join" then
+		client(player, "fire", { remote = "MapVoteRequest", args = { "Vault" }, collect = 0.1 })
+	end
 	return if reply.ok then reply.data else { error = reply.data }
 end
 
