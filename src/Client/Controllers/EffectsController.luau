@@ -125,7 +125,10 @@ local function onEffect(payload: any)
 	end
 	local kind = payload.kind
 	local audio = deps.AudioController
-	if kind == "Tracking" then
+	if kind == "Anomaly" then
+		ring(payload.position, payload.radius, Theme.Colors.Warning, 3, true)
+		audio.Play("FreezeCast")
+	elseif kind == "Tracking" then
 		local target = characterOf(payload.userId)
 		if target then
 			highlight(target, Theme.Colors.Warning, payload.duration or 3)

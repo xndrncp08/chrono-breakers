@@ -23,6 +23,28 @@ return function(t: any)
 			end
 		end)
 
+		t.it("keeps a route to every objective around any temporary fracture", function()
+			for id, original in MapLayout.Maps do
+				for _, site in original.anomalySites do
+					local map = TableUtil.deepCopy(original)
+					table.insert(map.boxes, {
+						name = "Fracture",
+						kind = "Wall",
+						center = site + Vector3.new(0, 6, 0),
+						size = Vector3.new(14, 12, 1),
+						color = "Danger",
+						material = "ForceField",
+						collide = true,
+					})
+					local reachable = MapValidator.buildGrid(map, true).reachableFrom(map.infiltratorSpawns[1])
+					for _, terminal in map.terminals do
+						assert(reachable(MapValidator.interactionPoint(terminal)), id .. " fractured route blocked")
+					end
+					assert(reachable(map.extractionCenter), id .. " fracture blocked extraction")
+				end
+			end
+		end)
+
 		t.it("has exactly three distinct terminals", function()
 			t.expect(#MapLayout.Vault.terminals).toBe(3)
 		end)

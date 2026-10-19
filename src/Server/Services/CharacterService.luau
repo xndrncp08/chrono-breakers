@@ -101,6 +101,8 @@ local function onCharacterAdded(player: Player, character: Model)
 	task.defer(function()
 		if character:IsDescendantOf(game) then
 			character:PivotTo(placement.cframe)
+			root.AssemblyLinearVelocity = Vector3.zero
+			root.AssemblyAngularVelocity = Vector3.zero
 			deps.SecurityService.ResetMovement(player)
 		end
 	end)
