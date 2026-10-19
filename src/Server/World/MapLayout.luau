@@ -37,6 +37,7 @@ export type TerminalSpec = {
 
 export type MapDefinition = {
 	name: string,
+	anomalySites: { Vector3 },
 	boundsMin: Vector3,
 	boundsMax: Vector3,
 	floorY: number,
@@ -297,6 +298,12 @@ local function buildVault(): MapDefinition
 
 	return {
 		name = "Chronos Vault",
+		anomalySites = {
+			Vector3.new(-16, 0, -16),
+			Vector3.new(16, 0, 16),
+			Vector3.new(-70, 0, 12),
+			Vector3.new(70, 0, -6),
+		},
 		boundsMin = Vector3.new(-90, -5, -90),
 		boundsMax = Vector3.new(90, 40, 90),
 		floorY = 0,

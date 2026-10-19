@@ -88,7 +88,7 @@ local function apply(player: Player)
 			(function(): { string }
 				local keys = {}
 				for _, effect in list do
-					table.insert(keys, `{effect.kind}:{effect.expiresAt}`)
+					table.insert(keys, `{effect.kind}:{effect.source}`)
 				end
 				return keys
 			end)(),

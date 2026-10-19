@@ -87,6 +87,10 @@ function WorldService.GetTerminalPositions(): { Vector3 }
 	return list
 end
 
+function WorldService.GetGeometryFolder(): Folder
+	return getWorld().static
+end
+
 function WorldService.GetRuntimeFolder(): Folder
 	return getWorld().runtime
 end

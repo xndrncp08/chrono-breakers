@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local AnomalyConfig = require(ReplicatedStorage.Shared.Config.AnomalyConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
@@ -79,6 +80,19 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Position = UDim2.fromOffset(0, 24),
 		XAlign = Enum.TextXAlignment.Center,
 		Parent = timerPanel,
+	})
+
+	local anomalyLabel = Style.text({
+		Name = "Anomaly",
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 88),
+		Size = UDim2.fromOffset(420, 48),
+		TextSize = Theme.TextSize.Small,
+		Font = Theme.Fonts.Heading,
+		XAlign = Enum.TextXAlignment.Center,
+		Color = Theme.Colors.Warning,
+		Parent = root,
 	})
 
 	-- Objectives (left, below the chat area)
@@ -317,6 +331,15 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		local snapshot = ClientState.get("snapshot")
 		if not snapshot then
 			return
+		end
+		local anomaly = snapshot.anomaly
+		anomalyLabel.Visible = anomaly ~= nil
+		if anomaly then
+			local definition = (AnomalyConfig.Events :: any)[anomaly.kind]
+			local warning = anomaly.state == "Warning"
+			local left =
+				math.max(0, math.ceil((if warning then anomaly.activatesAt else anomaly.endsAt) - ClientState.now()))
+			anomalyLabel.Text = `{definition.Name} / {if warning then "INCOMING" else "ACTIVE"} {left}s`
 		end
 		local phase = snapshot.phase
 		local remaining = if snapshot.phaseEndsAt then snapshot.phaseEndsAt - ClientState.now() else 0

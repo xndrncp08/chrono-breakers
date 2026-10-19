@@ -201,6 +201,7 @@ end
 
 function MatchService.BuildSnapshot(): any
 	local snapshot: any = getDirector():snapshot()
+	snapshot.anomaly = deps.AnomalyService.Snapshot()
 	snapshot.mapId = deps.WorldService.GetMapId()
 	snapshot.mapName = deps.WorldService.GetMap().name
 	snapshot.mapVotes = {}
@@ -319,6 +320,7 @@ local function onMatchStarted(payload: any)
 end
 
 local function onMatchActive(payload: any)
+	deps.AnomalyService.BeginMatch(payload.matchId)
 	local d = getDirector()
 	local session = d.session
 	if not session or session.matchId ~= payload.matchId then
@@ -434,6 +436,7 @@ local function onTerminalCompleted(payload: any)
 end
 
 local function onExtractionOpened(payload: any)
+	deps.AnomalyService.EndMatch()
 	deps.WorldService.SetExtractionOpen(true)
 	deps.NetworkService.Notify(
 		participantsAndAll(),
@@ -510,6 +513,7 @@ local function onParticipantLeft(payload: any)
 end
 
 local function onMatchResolved(result: MatchDirector.MatchResult)
+	deps.AnomalyService.EndMatch()
 	deps.AbilityService.EndMatch(result.matchId)
 	deps.CombatService.EndMatch()
 	deps.WorldService.SetExtractionOpen(false)
@@ -842,6 +846,7 @@ function MatchService.Start()
 			d.config.allowKeeperless = studioSolo and #Players:GetPlayers() == 1
 			local ok, err = Safe.call(function()
 				d:tick(now())
+				deps.AnomalyService.Tick(now())
 			end)
 			if not ok then
 				warn(`[MatchService] director tick failed: {err}`)

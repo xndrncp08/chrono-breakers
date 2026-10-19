@@ -13,6 +13,7 @@ ServerConfig.RateLimits = table.freeze({
 	ShopRequest = table.freeze({ capacity = 4, refillPerSecond = 1 }),
 	SettingsUpdate = table.freeze({ capacity = 3, refillPerSecond = 0.5 }),
 	ClientReady = table.freeze({ capacity = 2, refillPerSecond = 0.2 }),
+	PortalPrompt = table.freeze({ capacity = 2, refillPerSecond = 0.5 }),
 	HackPrompt = table.freeze({ capacity = 4, refillPerSecond = 2 }),
 })
 
