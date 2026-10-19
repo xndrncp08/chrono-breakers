@@ -3,7 +3,7 @@
 -- Gameplay items (gadgets) are side-grades with distinct trade-offs, not strict upgrades;
 -- cosmetics (trails) have no gameplay effect. No real-money items exist.
 
-export type ItemSlot = "Gadget" | "Trail"
+export type ItemSlot = "Gadget" | "Trail" | "Class"
 
 export type ItemDefinition = {
 	Id: string,
@@ -18,9 +18,10 @@ export type ItemDefinition = {
 	SortOrder: number,
 }
 
+local ClassConfig = require(script.Parent.ClassConfig)
 local ItemConfig = {}
 
-ItemConfig.Items = table.freeze({
+local items: { [string]: ItemDefinition } = {
 	Stabilizer = table.freeze({
 		Id = "Stabilizer",
 		DisplayName = "Chrono Stabilizer",
@@ -81,14 +82,28 @@ ItemConfig.Items = table.freeze({
 		Color = Color3.fromRGB(255, 200, 72),
 		SortOrder = 12,
 	} :: ItemDefinition),
-})
+}
+for index, id in ClassConfig.Order do
+	local definition = ClassConfig.get(id) :: ClassConfig.Definition
+	items[id] = table.freeze({
+		Id = id,
+		DisplayName = definition.Name,
+		Description = definition.Description,
+		Slot = "Class",
+		Cost = 0,
+		DefaultOwned = true,
+		SortOrder = 20 + index,
+	} :: ItemDefinition)
+end
+ItemConfig.Items = table.freeze(items)
 
 ItemConfig.DefaultEquipped = table.freeze({
 	Gadget = "Stabilizer",
+	Class = "Ghost",
 	Trail = "TrailCyan",
 })
 
-ItemConfig.Slots = table.freeze({ "Gadget", "Trail" })
+ItemConfig.Slots = table.freeze({ "Gadget", "Trail", "Class" })
 
 function ItemConfig.get(itemId: string): ItemDefinition?
 	return (ItemConfig.Items :: any)[itemId]

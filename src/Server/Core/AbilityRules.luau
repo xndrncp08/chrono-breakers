@@ -13,6 +13,7 @@ export type CasterContext = {
 	restrained: boolean,
 	cooldownReady: boolean,
 	equippedGadget: string?,
+	classAbility: string?,
 }
 
 export type StrikeCandidate = { userId: number, position: Vector3 }
@@ -39,7 +40,7 @@ function AbilityRules.checkCaster(ctx: CasterContext): (boolean, string)
 	if definition.Role ~= ctx.role then
 		return false, "WrongRole"
 	end
-	if ctx.role == "Infiltrator" and ctx.equippedGadget ~= ctx.abilityId then
+	if ctx.role == "Infiltrator" and ctx.equippedGadget ~= ctx.abilityId and ctx.classAbility ~= ctx.abilityId then
 		return false, "NotOwned"
 	end
 	if not ctx.participantActive or not ctx.alive then

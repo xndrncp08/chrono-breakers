@@ -1,0 +1,71 @@
+--!strict
+local ServerScriptService = game:GetService("ServerScriptService")
+local Harness = require(ServerScriptService.Tests.Helpers.DirectorHarness)
+return function(t: any)
+	t.it("supports one assistant, maintains exclusive participation and drops only invalid assistants", function()
+		local h = Harness.new({ cooperativeHacking = true })
+		h:startMatch({ 1, 2, 3, 4, 5 })
+		local team = h:infiltrators()
+		for _, userId in team do
+			h.distance[userId] = { T1 = 5, T2 = 5 }
+		end
+		t.expect((h.director:requestHackStart(team[1], "T1", h.now))).toBe(true)
+		t.expect((h.director:requestHackStart(team[2], "T1", h.now))).toBe(true)
+		t.expect(select(2, h.director:requestHackStart(team[3], "T1", h.now))).toBe("Busy")
+		t.expect(select(2, h.director:requestHackStart(team[2], "T2", h.now))).toBe("AlreadyHacking")
+		h:advance(5)
+		t.expect((h.director:publicTerminal("T1") :: any).progress).toBeGreaterThan(0.44)
+		h.director:notifyDamage(team[2], h.now)
+		t.expect((h.director:publicTerminal("T1") :: any).assistantUserId).toBeNil()
+		t.expect((h.director:publicTerminal("T1") :: any).state).toBe("Hacking")
+		h.director:requestHackStart(team[3], "T1", h.now)
+		h:advance(7)
+		t.expect((h.director:publicTerminal("T1") :: any).state).toBe("Completed")
+		t.expect((h.director:getParticipant(team[3]) :: any).assists).toBe(1)
+	end)
+	t.it("binds challenges to the primary hacker and current match; rewards once and penalizes failure", function()
+		local h = Harness.new({ interactiveChallenges = true })
+		h:startMatch({ 1, 2, 3 })
+		local a, b = h:infiltrators()[1], h:infiltrators()[2]
+		h:placeAt(a, "T1")
+		h:placeAt(b, "T1")
+		h.director:requestHackStart(a, "T1", h.now)
+		h:advance(1)
+		local session = h.director.session :: any
+		local challenge = session.challenges.T1
+		local before = session.terminals.T1.progress
+		t.expect((h.director:respondChallenge(b, session.matchId, "T1", challenge.nonce, challenge.answer, h.now)))
+			.toBe(false)
+		t.expect((h.director:respondChallenge(a, "old-match", "T1", challenge.nonce, challenge.answer, h.now)))
+			.toBe(false)
+		t.expect((h.director:respondChallenge(a, session.matchId, "T1", challenge.nonce, challenge.answer, h.now)))
+			.toBe(true)
+		t.expect(session.terminals.T1.progress).toBeNear(before + 0.08)
+		t.expect((h.director:respondChallenge(a, session.matchId, "T1", challenge.nonce, challenge.answer, h.now)))
+			.toBe(false)
+		h:advance(5)
+		challenge = session.challenges.T1
+		local current = session.terminals.T1.progress
+		t.expect(
+			(h.director:respondChallenge(a, session.matchId, "T1", challenge.nonce, challenge.answer % 3 + 1, h.now))
+		)
+			.toBe(false)
+		t.expect(session.terminals.T1.progress).toBeNear(current - 0.06)
+		t.expect(session.terminals.T1.state).toBe("Interrupted")
+		t.expect(h:count("HackRisk")).toBe(1)
+	end)
+	t.it("clears assistants on primary disconnect and never counts stale progress at the deadline", function()
+		local h = Harness.new({ cooperativeHacking = true, interactiveChallenges = true, matchDuration = 3 })
+		h:startMatch({ 1, 2, 3, 4 })
+		local a, b = h:infiltrators()[1], h:infiltrators()[2]
+		h:placeAt(a, "T1")
+		h:placeAt(b, "T1")
+		h.director:requestHackStart(a, "T1", h.now)
+		h.director:requestHackStart(b, "T1", h.now)
+		h.director:playerRemoving(a, h.now)
+		t.expect((h.director:publicTerminal("T1") :: any).assistantUserId).toBeNil()
+		h:advance(4)
+		t.expect(h.director:getPhase()).toBe("Resolving")
+		t.expect(h:count("TerminalCompleted")).toBe(0)
+	end)
+end

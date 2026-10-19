@@ -1,5 +1,6 @@
 --!strict
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local MapConfig = require(ReplicatedStorage.Shared.Config.MapConfig)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
@@ -58,7 +59,53 @@ function DeploymentScreen.new(parent: Instance)
 			Parent = card,
 		})
 	end
+	Style.text({
+		Text = "CLASS / All five classes are free. Skills use F / Y; gadgets use Q / L1.",
+		LayoutOrder = 10,
+		Size = UDim2.new(1, -8, 0, 48),
+		TextSize = Theme.TextSize.Small,
+		Parent = scroll,
+	})
+	local classButtons: { [string]: Button.Button } = {}
+	for index, id in ClassConfig.Order do
+		local definition = ClassConfig.get(id) :: ClassConfig.Definition
+		local card = Style.panel({
+			Size = UDim2.new(1, -8, 0, 128),
+			LayoutOrder = 10 + index,
+			Padding = 12,
+			StrokeColor = definition.Color,
+			Parent = scroll,
+		})
+		Style.text({
+			Text = definition.Description,
+			Size = UDim2.new(1, -190, 1, 0),
+			TextSize = Theme.TextSize.Small,
+			Parent = card,
+		})
+		classButtons[id] = Button.new({
+			Text = definition.Name,
+			Style = "Secondary",
+			Size = UDim2.new(0, 178, 1, 0),
+			Position = UDim2.fromScale(1, 0),
+			AnchorPoint = Vector2.new(1, 0),
+			OnActivated = function()
+				Net.send(RemoteNames.ShopRequest, "Equip", id)
+			end,
+			Parent = card,
+		})
+	end
 	local function render()
+		local profile = ClientState.get("profile")
+		for id, button in classButtons do
+			local equipped = profile and profile.equipped.Class == id
+			button:SetStyle(if equipped then "Primary" else "Secondary")
+			button:SetText(
+				`{(ClassConfig.get(id) :: ClassConfig.Definition).Name}{if equipped then " · EQUIPPED" else ""}`
+			)
+			button:SetEnabled(
+				profile ~= nil and profile.loaded and not equipped and not ClientState.isLiveParticipant()
+			)
+		end
 		local snapshot = ClientState.get("snapshot")
 		local queue = ClientState.get("queue")
 		local voting = snapshot
@@ -82,7 +129,7 @@ function DeploymentScreen.new(parent: Instance)
 		end
 	end
 	ClientState.changed:Connect(function(key: string)
-		if key == "snapshot" or key == "queue" then
+		if key == "snapshot" or key == "queue" or key == "profile" then
 			render()
 		end
 	end)

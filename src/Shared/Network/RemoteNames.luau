@@ -16,6 +16,7 @@ local RemoteNames = {
 	-- Client -> Server
 	QueueRequest = "QueueRequest",
 	MapVoteRequest = "MapVoteRequest",
+	HackChallengeRequest = "HackChallengeRequest",
 	ObjectiveRequest = "ObjectiveRequest",
 	AbilityRequest = "AbilityRequest",
 	ShopRequest = "ShopRequest",
@@ -37,6 +38,7 @@ local RemoteNames = {
 }
 
 RemoteNames.Specs = table.freeze({
+	{ Name = "HackChallengeRequest", Kind = "RemoteEvent", Direction = "ClientToServer" },
 	{ Name = "MapVoteRequest", Kind = "RemoteEvent", Direction = "ClientToServer" },
 	{ Name = "QueueRequest", Kind = "RemoteEvent", Direction = "ClientToServer" },
 	{ Name = "ObjectiveRequest", Kind = "RemoteEvent", Direction = "ClientToServer" },

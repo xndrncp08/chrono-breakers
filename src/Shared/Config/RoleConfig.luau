@@ -30,7 +30,7 @@ RoleConfig.Roles = table.freeze({
 		WalkSpeed = 17,
 		JumpPower = 50,
 		MaxHealth = 100,
-		Abilities = { "ChronoStrike", "TimeFreeze", "TemporalTrap" },
+		Abilities = { "ChronoStrike", "TimeFreeze", "TemporalTrap", "ChronoScan" },
 	} :: RoleDefinition),
 	Infiltrator = table.freeze({
 		Id = "Infiltrator",

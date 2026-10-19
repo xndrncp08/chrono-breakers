@@ -125,7 +125,12 @@ local function onEffect(payload: any)
 	end
 	local kind = payload.kind
 	local audio = deps.AudioController
-	if kind == KINDS.FreezeTelegraph then
+	if kind == "Tracking" then
+		local target = characterOf(payload.userId)
+		if target then
+			highlight(target, Theme.Colors.Warning, payload.duration or 3)
+		end
+	elseif kind == KINDS.FreezeTelegraph then
 		ring(payload.position, payload.radius, Theme.Colors.Warning, 0.75, true)
 		audio.Play("FreezeCast")
 		local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?

@@ -57,15 +57,42 @@ function ObjectiveService.BindTerminals()
 	end
 end
 
+local function handleChallenge(player: Player, matchId: any, terminalId: any, nonce: any, answer: any, ...: any)
+	if
+		select("#", ...) > 0
+		or not Validate.isShortString(matchId, 64)
+		or not Validate.isShortString(terminalId, 32)
+		or not Validate.isInteger(nonce, 1, 1000000)
+		or not Validate.isInteger(answer, 1, 3)
+	then
+		deps.SecurityService.Report(player, "InvalidPayload", "HackChallenge")
+		deps.NetworkService.Reject(player, "Challenge", Protocol.Codes.InvalidPayload)
+		return
+	end
+	local ok, code = deps.MatchService
+		.GetDirector()
+		:respondChallenge(player.UserId, matchId, terminalId, nonce, answer, workspace:GetServerTimeNow())
+	if ok then
+		deps.NetworkService.Accept(player, "Challenge")
+	else
+		deps.NetworkService.Reject(player, "Challenge", code)
+	end
+end
+
 function ObjectiveService.Start()
 	ObjectiveService.BindTerminals()
+	deps.NetworkService.OnRequest(RemoteNames.HackChallengeRequest, handleChallenge)
 	deps.NetworkService.OnRequest(RemoteNames.ObjectiveRequest, handleObjectiveRequest)
 	ObjectiveService.ResetVisuals()
 end
 
 -- Mirrors one authoritative terminal snapshot onto its world visuals.
 function ObjectiveService.OnTerminalChanged(terminal: { id: string, state: string })
-	deps.WorldService.SetTerminalVisual(terminal.id, terminal.state, terminal.state == "Available")
+	deps.WorldService.SetTerminalVisual(
+		terminal.id,
+		terminal.state,
+		terminal.state == "Available" or terminal.state == "Hacking"
+	)
 end
 
 function ObjectiveService.ResetVisuals()

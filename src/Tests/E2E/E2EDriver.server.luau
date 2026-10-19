@@ -53,7 +53,7 @@ local FreezeZone = req({ "Components", "FreezeZone" })
 local TemporalTrap = req({ "Components", "TemporalTrap" })
 local PlacementRules = req({ "Core", "PlacementRules" })
 local MapValidator = req({ "World", "MapValidator" })
-local MapLayout = req({ "World", "MapLayout" })
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local Economy = req({ "Core", "Economy" })
 
 local passed, failed = 0, 0
@@ -117,12 +117,20 @@ local function rootOf(player: Player): BasePart?
 	return character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
 end
 
+local function baseline(player: Player): number
+	if not MatchService.IsInMatch(player) then
+		return 16
+	end
+	local class = ClassConfig.get(MatchService.GetMatchClass(player))
+	return if class then class.WalkSpeed else 17
+end
+
 local function near(a: number?, b: number, eps: number?): boolean
 	return a ~= nil and math.abs(a - b) <= (eps or 0.05)
 end
 
 local function terminalSpec(id: string): any
-	for _, t in MapLayout.Vault.terminals do
+	for _, t in WorldService.GetMap().terminals do
 		if t.id == id then
 			return t
 		end
@@ -264,7 +272,7 @@ local function runMatchOne(player: Player)
 		"match: movement restored to 16 after intro",
 		waitFor(function()
 			local h = humanoidOf(player)
-			return h ~= nil and near(h.WalkSpeed, 16)
+			return h ~= nil and near(h.WalkSpeed, baseline(player))
 		end, 2),
 		humanoidOf(player) and (humanoidOf(player) :: Humanoid).WalkSpeed
 	)
@@ -291,7 +299,7 @@ local function runMatchOne(player: Player)
 	check("client: role reveal dismissed", snap and snap.ui_RoleReveal == false)
 	check(
 		"client: one gadget slot in the ability bar",
-		snap and snap.ui_abilitySlots == 1,
+		snap and snap.ui_abilitySlots == 2,
 		snap and snap.ui_abilitySlots
 	)
 
@@ -382,20 +390,20 @@ local function runMatchOne(player: Player)
 	end)
 	check(
 		"freeze: telegraph does not slow immediately",
-		near((humanoidOf(player) :: Humanoid).WalkSpeed, 16),
+		near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player)),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
 	check(
 		"freeze: 70% slow applied from baseline (4.8)",
 		waitFor(function()
-			return near((humanoidOf(player) :: Humanoid).WalkSpeed, 4.8)
+			return near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player) * 0.3)
 		end, 2),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
 	task.wait(1.5) -- zone A expired, zone B still active
 	check(
 		"freeze: overlapping zones do not stack; slow persists after one expires",
-		near((humanoidOf(player) :: Humanoid).WalkSpeed, 4.8),
+		near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player) * 0.3),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
 	snap = client(player, "snapshot")
@@ -403,7 +411,7 @@ local function runMatchOne(player: Player)
 	check(
 		"freeze: speed restored to exactly 16 after all zones end",
 		waitFor(function()
-			return near((humanoidOf(player) :: Humanoid).WalkSpeed, 16)
+			return near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player))
 		end, 4),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
@@ -498,14 +506,14 @@ local function runMatchOne(player: Player)
 	check(
 		"trap: after stun, 40% slow (9.6)",
 		waitFor(function()
-			return near((humanoidOf(player) :: Humanoid).WalkSpeed, 9.6)
+			return near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player) * 0.6)
 		end, 3),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
 	check(
 		"trap: speed restored to 16",
 		waitFor(function()
-			return near((humanoidOf(player) :: Humanoid).WalkSpeed, 16)
+			return near((humanoidOf(player) :: Humanoid).WalkSpeed, baseline(player))
 		end, 4),
 		(humanoidOf(player) :: Humanoid).WalkSpeed
 	)
@@ -517,8 +525,8 @@ local function runMatchOne(player: Player)
 			eyePosition = caster + Vector3.new(0, 1.5, 0),
 			target = target,
 			maxRange = range,
-			boundsMin = MapLayout.Vault.boundsMin,
-			boundsMax = MapLayout.Vault.boundsMax,
+			boundsMin = WorldService.GetMap().boundsMin,
+			boundsMax = WorldService.GetMap().boundsMax,
 			castDown = WorldService.CastDown,
 			lineOfSight = WorldService.HasLineOfSight,
 		})
@@ -580,7 +588,7 @@ local function runMatchOne(player: Player)
 	check("client: extraction visible in HUD", snap and snap.phase == "Extraction")
 
 	-- 13. Extract -> resolution -> rewards
-	moveTo(player, MapLayout.Vault.extractionCenter)
+	moveTo(player, WorldService.GetMap().extractionCenter)
 	check(
 		"extraction: player extracted after channel",
 		waitFor(function()
@@ -711,7 +719,7 @@ local function runMatchTwo(player: Player)
 	check(
 		"match 2: long slow active before death (4.8)",
 		waitFor(function()
-			return near(walkSpeed(player), 4.8)
+			return near(walkSpeed(player), baseline(player) * 0.3)
 		end, 2),
 		walkSpeed(player)
 	)
@@ -892,7 +900,7 @@ local function runMultiplayer(a: Player, b: Player)
 	)
 	task.wait(0.5)
 	check("keeper: held in the Sanctum after Active begins", near(walkSpeed(keeper), 0), walkSpeed(keeper))
-	check("infiltrator: free to move (16)", near(walkSpeed(infiltrator), 16), walkSpeed(infiltrator))
+	check("infiltrator: free to move (16)", near(walkSpeed(infiltrator), baseline(infiltrator)), walkSpeed(infiltrator))
 	check("infiltrator: spawn protection", StatusEffectService.IsInvulnerable(infiltrator))
 	local heldCast = client(
 		keeper,
@@ -902,10 +910,10 @@ local function runMultiplayer(a: Player, b: Player)
 	check("keeper: abilities rejected while held (Restrained)", hasCode(heldCast, "Restrained"), codes(heldCast))
 	ks = client(keeper, "snapshot")
 	is = client(infiltrator, "snapshot")
-	check("client: Keeper ability bar has 3 slots", ks and ks.ui_abilitySlots == 3, ks and ks.ui_abilitySlots)
+	check("client: Keeper ability bar has 4 slots", ks and ks.ui_abilitySlots == 4, ks and ks.ui_abilitySlots)
 	check(
-		"client: Infiltrator ability bar has 1 gadget slot",
-		is and is.ui_abilitySlots == 1,
+		"client: Infiltrator ability bar has gadget and class skill slots",
+		is and is.ui_abilitySlots == 2,
 		is and is.ui_abilitySlots
 	)
 	check(
@@ -972,7 +980,7 @@ local function runMultiplayer(a: Player, b: Player)
 	check(
 		"freeze: Infiltrator slowed to 4.8 after telegraph",
 		waitFor(function()
-			return near(walkSpeed(infiltrator), 4.8)
+			return near(walkSpeed(infiltrator), baseline(infiltrator) * 0.3)
 		end, 2),
 		walkSpeed(infiltrator)
 	)
@@ -988,7 +996,7 @@ local function runMultiplayer(a: Player, b: Player)
 	check(
 		"freeze: leaving the zone restores 16",
 		waitFor(function()
-			return near(walkSpeed(infiltrator), 16)
+			return near(walkSpeed(infiltrator), baseline(infiltrator))
 		end, 2),
 		walkSpeed(infiltrator)
 	)
@@ -1034,7 +1042,7 @@ local function runMultiplayer(a: Player, b: Player)
 	check(
 		"trap: stun -> 40% slow -> 16",
 		waitFor(function()
-			return near(walkSpeed(infiltrator), 16)
+			return near(walkSpeed(infiltrator), baseline(infiltrator))
 		end, 6),
 		walkSpeed(infiltrator)
 	)
@@ -1073,7 +1081,7 @@ local function runMultiplayer(a: Player, b: Player)
 		"strike: 34 damage applied",
 		waitFor(function()
 			local h = humanoidOf(infiltrator)
-			return h ~= nil and near(h.Health, 66, 0.5)
+			return h ~= nil and near(h.Health, h.MaxHealth - 34, 0.5)
 		end, 1),
 		humanoidOf(infiltrator) and (humanoidOf(infiltrator) :: Humanoid).Health
 	)
@@ -1325,12 +1333,13 @@ local function runSquad(players: { Player })
 	if infiltrators[3] then
 		moveToTerminal(infiltrators[3], "ArchiveTerminal")
 		local okBusy, codeBusy = MatchService.RequestHack(infiltrators[3], "ArchiveTerminal")
-		check("squad: one hacker per terminal (Busy)", not okBusy and codeBusy == "Busy", codeBusy)
+		check("squad: one assistant can join the primary hacker", okBusy, codeBusy)
+		MatchService.CancelHack(infiltrators[3], "Cancelled")
 	end
 
 	-- A walks away mid-hack; progress is retained for a teammate.
 	task.wait(5)
-	moveTo(a, MapLayout.Vault.extractionCenter)
+	moveTo(a, WorldService.GetMap().extractionCenter)
 	check(
 		"squad: walking away interrupts with progress retained",
 		waitFor(function()
@@ -1404,9 +1413,9 @@ local function runSquad(players: { Player })
 	for i = 3, #infiltrators do
 		table.insert(others, infiltrators[i])
 	end
-	moveTo(b, MapLayout.Vault.extractionCenter)
+	moveTo(b, WorldService.GetMap().extractionCenter)
 	for _, p in others do
-		moveTo(p, MapLayout.Vault.extractionCenter)
+		moveTo(p, WorldService.GetMap().extractionCenter)
 	end
 	check(
 		"squad: Infiltrators win by extraction",
