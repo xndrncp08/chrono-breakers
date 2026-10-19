@@ -48,13 +48,17 @@ local function handleObjectiveRequest(player: Player, action: any, ...: any)
 	end
 end
 
-function ObjectiveService.Start()
+function ObjectiveService.BindTerminals()
 	for _, terminal in deps.WorldService.GetTerminals() do
 		local terminalId = terminal.id
 		terminal.prompt.Triggered:Connect(function(player: Player)
 			onPromptTriggered(player, terminalId)
 		end)
 	end
+end
+
+function ObjectiveService.Start()
+	ObjectiveService.BindTerminals()
 	deps.NetworkService.OnRequest(RemoteNames.ObjectiveRequest, handleObjectiveRequest)
 	ObjectiveService.ResetVisuals()
 end

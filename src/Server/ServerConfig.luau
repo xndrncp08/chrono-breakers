@@ -5,6 +5,7 @@ local ServerConfig = {}
 
 -- Token-bucket limits per remote (see docs/NETWORK_CONTRACT.md).
 ServerConfig.RateLimits = table.freeze({
+	MapVoteRequest = table.freeze({ capacity = 3, refillPerSecond = 0.5 }),
 	QueueRequest = table.freeze({ capacity = 4, refillPerSecond = 1 }),
 	ObjectiveRequest = table.freeze({ capacity = 4, refillPerSecond = 2 }),
 	AbilityRequest = table.freeze({ capacity = 6, refillPerSecond = 4 }),

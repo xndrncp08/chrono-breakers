@@ -119,6 +119,16 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = root,
 	}, { Style.list(Enum.FillDirection.Vertical, Theme.Spacing.S, Enum.HorizontalAlignment.Right) })
+	Button.new({
+		Text = "Deployment & Maps",
+		Style = "Primary",
+		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
+		LayoutOrder = 0,
+		OnActivated = function()
+			deps.UIController.OpenModal("Deployment")
+		end,
+		Parent = menu,
+	})
 	local loadoutButton = Button.new({
 		Text = "Loadout & Shop",
 		Style = "Secondary",
@@ -276,7 +286,7 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		local queued = queue ~= nil and queue.queued
 		local count = if queue then queue.count else snapshot.queueCount
 		local minPlayers = if queue then queue.minPlayers else snapshot.minPlayers
-		local details = {}
+		local details = { `SECTOR / {snapshot.mapName or "Chronos Vault"}` }
 		if queued then
 			table.insert(details, `You're in the queue (#{queue.position} of {count}).`)
 		else

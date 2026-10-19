@@ -23,6 +23,7 @@ local Cleanup = require(ReplicatedStorage.Shared.Modules.Cleanup)
 local TableUtil = require(ReplicatedStorage.Shared.Modules.TableUtil)
 
 local MatchDirector = require(script.Parent.Parent.Core.MatchDirector)
+local MapVote = require(script.Parent.Parent.Core.MapVote)
 local Validate = require(script.Parent.Parent.Core.Validate)
 
 local MatchService = {}
@@ -34,6 +35,7 @@ local matchLoadouts: { [number]: string } = {} -- userId -> gadget id locked at 
 local spawnIndex: { [number]: number } = {}
 local lastSnapshotAt = 0
 local studioSolo = false
+local mapVotes: { [number]: string } = {}
 
 local IN_MATCH = { Intro = true, Active = true, Extraction = true }
 
@@ -185,9 +187,22 @@ end
 -- Broadcasting
 ---------------------------------------------------------------------------
 
+function MatchService.BuildSnapshot(): any
+	local snapshot: any = getDirector():snapshot()
+	snapshot.mapId = deps.WorldService.GetMapId()
+	snapshot.mapName = deps.WorldService.GetMap().name
+	snapshot.mapVotes = {}
+	for userId, id in mapVotes do
+		if getDirector().queue:contains(userId) then
+			snapshot.mapVotes[tostring(userId)] = id
+		end
+	end
+	return snapshot
+end
+
 function MatchService.BroadcastSnapshot()
 	lastSnapshotAt = os.clock()
-	deps.NetworkService.FireAll(RemoteNames.MatchState, getDirector():snapshot())
+	deps.NetworkService.FireAll(RemoteNames.MatchState, MatchService.BuildSnapshot())
 end
 
 local function queueStateFor(player: Player): { [string]: any }
@@ -642,7 +657,7 @@ local function handleClientReady(player: Player, ...: any)
 		deps.SecurityService.Report(player, "InvalidPayload", "ClientReady")
 		return
 	end
-	deps.NetworkService.FireClient(RemoteNames.MatchState, player, getDirector():snapshot())
+	deps.NetworkService.FireClient(RemoteNames.MatchState, player, MatchService.BuildSnapshot())
 	deps.NetworkService.FireClient(RemoteNames.QueueState, player, queueStateFor(player))
 	deps.PlayerDataService.SendSnapshot(player)
 	if MatchService.IsInMatch(player) then
@@ -681,6 +696,13 @@ function MatchService.Init(injected: { [string]: any })
 			allowKeeperless = studioSolo,
 		},
 		terminals = deps.WorldService.GetTerminalSpecs(),
+		prepareMatch = function(order: { number })
+			local id = MapVote.select(mapVotes, order, getDirector().matchesStarted - 1)
+			deps.WorldService.SelectMap(id)
+			deps.ObjectiveService.BindTerminals()
+			table.clear(mapVotes)
+			return deps.WorldService.GetTerminalSpecs()
+		end,
 		now = now(),
 		newMatchId = function()
 			return game:GetService("HttpService"):GenerateGUID(false)
@@ -736,10 +758,29 @@ function MatchService.Start()
 
 	deps.NetworkService.OnRequest(RemoteNames.QueueRequest, handleQueueRequest)
 	deps.NetworkService.OnRequest(RemoteNames.ClientReady, handleClientReady)
+	deps.NetworkService.OnRequest(RemoteNames.MapVoteRequest, function(player: Player, mapId: any, ...: any)
+		if select("#", ...) > 0 or not Validate.isShortString(mapId, 32) then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.InvalidPayload)
+			return
+		end
+		if
+			not d.queue:contains(player.UserId)
+			or (d:getPhase() ~= "WaitingForPlayers" and d:getPhase() ~= "Intermission")
+		then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.WrongPhase)
+			return
+		end
+		if not MapVote.cast(mapVotes, player.UserId, mapId) then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.UnknownTarget)
+			return
+		end
+		MatchService.BroadcastSnapshot()
+	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		d:playerRemoving(player.UserId, now())
 		matchLoadouts[player.UserId] = nil
+		mapVotes[player.UserId] = nil
 		MatchService.BroadcastQueue()
 		MatchService.BroadcastSnapshot()
 	end)
