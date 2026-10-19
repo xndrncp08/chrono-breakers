@@ -904,8 +904,16 @@ function MatchDirector.new(params: Params): MatchDirector
 		end
 		local keeperless = config.allowKeeperless and #taken == 1
 		local roles = RoleSelector.assign(taken, self.roleHistory, params.randomIndex, keeperless)
+		local ok, created = pcall(createSession, roles, taken, now)
+		if not ok then
+			self.matchesStarted -= 1
+			self.queue:restore(taken)
+			setPhase("WaitingForPlayers", now, nil)
+			warn(`[MatchDirector] match setup failed: {created}`)
+			return
+		end
 		RoleSelector.recordMatch(self.roleHistory, roles)
-		local session = createSession(roles, taken, now)
+		local session = created :: Session
 		self.session = session
 		setPhase("Intro", now, now + config.introDuration)
 		emit("MatchStarted", {

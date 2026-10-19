@@ -67,8 +67,8 @@ end
 
 local function createMarker(model: Model): Marker?
 	local id = model:GetAttribute("TerminalId")
-	local console = model:FindFirstChild("Console")
-	if type(id) ~= "string" or not console then
+	local console = model:WaitForChild("Console", 5)
+	if type(id) ~= "string" or not console or model.Parent == nil then
 		return nil
 	end
 	local gui = Create("BillboardGui", {
@@ -261,9 +261,10 @@ local function track(model: Instance)
 		markers[id].gui:Destroy()
 	end
 	local marker = createMarker(model)
-	if marker then
-		markers[id] = marker
+	if not marker then
+		return
 	end
+	markers[id] = marker
 	model:GetAttributeChangedSignal("State"):Connect(updatePrompts)
 	local prompt = model:FindFirstChild("HackPrompt", true) :: ProximityPrompt?
 	if prompt then

@@ -619,6 +619,9 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 				for answer, key in { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three } do
 					local gamepad = ({ Enum.KeyCode.DPadLeft, Enum.KeyCode.DPadUp, Enum.KeyCode.DPadRight })[answer]
 					ContextActionService:BindAction(`HackAnswer{answer}`, function(_, state)
+						if ClientState.get("modal") then
+							return Enum.ContextActionResult.Pass
+						end
 						if state == Enum.UserInputState.Begin then
 							submitChallenge(answer)
 						end

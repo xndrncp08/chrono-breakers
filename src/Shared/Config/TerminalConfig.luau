@@ -10,7 +10,7 @@ local TerminalConfig = {
 	ProgressBroadcastInterval = 0.25, -- minimum seconds between progress updates per terminal
 	-- Progress is retained on interruption so a team can resume a partially hacked terminal.
 	RetainProgressOnInterrupt = true,
-	-- One active hacker per terminal, one terminal per hacker.
+	-- One primary plus one assistant per terminal; one terminal per player.
 	MaxHackersPerTerminal = 2,
 	CooperativeHacking = true,
 	InteractiveChallenges = true,

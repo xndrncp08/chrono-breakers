@@ -72,3 +72,21 @@ reset-button policy).
 - DataStore failure → unsaved session (player can play; UI warns); Studio without API access →
   in-memory store (logged).
 - Handler errors are caught at the remote boundary and logged with the remote name and user id.
+
+## Temporal expansion
+
+`MatchDirector.prepareMatch` selects/builds the voted authored map before creating terminals;
+failed preparation restores the queue and preserves role history. ObjectiveService rebinds prompts,
+and clients remove markers for replaced worlds. Classes/gadgets are fixed in MatchService at start.
+
+`HackChallenge` holds server nonces, windows and one-use answers. The director retains one primary
+and one optional assistant, checks each independently and counts completion exactly once.
+`AnomalyModel` schedules one event; `AnomalyService` adapts it to Instances/forces/portals from the
+existing director tick. `MovementRules` supports gameplay-boundary displacement correction.
+
+`Progression` runs inside RewardLedger's duplicate-guarded profile mutation. Schema v3 extends the
+existing store with bounded XP/mastery/contracts/milestones; ProfileStore fences each load with a
+unique session token. UI components continue to share Theme/Style/Button/Modal; modal ownership
+suppresses gameplay bindings, and HUD rows are reused instead of recreated on each update.
+
+See [EXPANSION_RELEASE](EXPANSION_RELEASE.md) for exact limits and live verification still required.

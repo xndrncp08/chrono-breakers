@@ -55,6 +55,17 @@ return function(t: any)
 			end
 		end)
 
+		t.it("keeps Keeper bindings distinct and leaves X free for portal prompts", function()
+			local keys: { [string]: boolean } = {}
+			for _, id in AbilityConfig.KeeperAbilityOrder do
+				local definition = AbilityConfig.get(id)
+				assert(definition, "missing ability")
+				t.expect(keys[definition.GamepadKey]).toBeNil()
+				t.expect(definition.GamepadKey == "ButtonX").toBe(false)
+				keys[definition.GamepadKey] = true
+			end
+		end)
+
 		t.it("links every gadget item to an Infiltrator ability and owns the defaults", function()
 			for _, item in ItemConfig.list() do
 				if item.Slot == "Gadget" then

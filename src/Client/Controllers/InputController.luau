@@ -135,7 +135,7 @@ local function computeAimPoint(abilityId: string): (Vector3?, boolean)
 	local probeStart =
 		Vector3.new(root.Position.X + offset.X, math.max(candidate.Y, root.Position.Y) + 4, root.Position.Z + offset.Z)
 	local ground = raycastExcludingCharacters(probeStart, Vector3.new(0, -20, 0))
-	if not ground or ground.Normal.Y < 0.7 then
+	if not ground or not ground.Instance.CanCollide or ground.Normal.Y < 0.7 then
 		return probeStart - Vector3.new(0, 4, 0), false
 	end
 	local eye = root.Position + Vector3.new(0, 1.5, 0)
@@ -354,6 +354,9 @@ end
 function InputController.SetHackCancelBound(bound: boolean)
 	if bound then
 		ContextActionService:BindAction(CANCEL_HACK_ACTION, function(_, state)
+			if ClientState.get("modal") or UserInputService:GetFocusedTextBox() then
+				return Enum.ContextActionResult.Pass
+			end
 			if state == Enum.UserInputState.Begin then
 				InputController.CancelHack()
 				return Enum.ContextActionResult.Sink
@@ -377,6 +380,11 @@ function InputController.Ping()
 end
 
 function InputController.Init()
+	ClientState.observe("modal", function(name)
+		if name then
+			InputController.CancelTargeting()
+		end
+	end)
 	ContextActionService:BindAction("ChronoTeamPing", function(_, state)
 		if
 			state == Enum.UserInputState.Begin

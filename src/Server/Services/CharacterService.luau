@@ -164,12 +164,18 @@ function CharacterService.SetCloaked(player: Player, cloaked: boolean)
 		return
 	end
 	character:SetAttribute("ChronoCloaked", cloaked)
+	local humanoid = character:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = if cloaked
+			then Enum.HumanoidDisplayDistanceType.None
+			else Enum.HumanoidDisplayDistanceType.Viewer
+	end
 	for _, part in character:GetDescendants() do
 		if part:IsA("BasePart") or part:IsA("Decal") then
 			local visual = part :: any
 			if cloaked then
 				part:SetAttribute("ChronoTransparency", visual.Transparency)
-				visual.Transparency = 0.96
+				visual.Transparency = math.max(visual.Transparency, 0.96)
 			else
 				local previous = part:GetAttribute("ChronoTransparency")
 				if type(previous) == "number" then
