@@ -31,6 +31,7 @@ export type ResolutionReason =
 
 -- Public per-participant info broadcast to all clients.
 export type PublicParticipant = {
+	classId: string?,
 	userId: number,
 	name: string,
 	role: Role,

@@ -21,6 +21,8 @@ local Style = require(script.Parent.Parent.Components.Style)
 local LoadoutScreen = {}
 
 type Card = {
+	frame: Frame,
+	description: TextLabel,
 	item: ItemConfig.ItemDefinition,
 	status: TextLabel,
 	button: Button.Button,
@@ -83,7 +85,7 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 	for index, item in ItemConfig.list() do
 		local card = Style.panel({
 			Name = `Item_{item.Id}`,
-			Size = UDim2.new(1, -8, 0, 86),
+			Size = UDim2.new(1, -8, 0, 118),
 			Color = Theme.Colors.SurfaceRaised,
 			Transparency = 0.1,
 			Padding = Theme.Spacing.M,
@@ -108,7 +110,7 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 			Wrapped = false,
 			Parent = card,
 		})
-		Style.text({
+		local description = Style.text({
 			Text = item.Description,
 			TextSize = Theme.TextSize.Small,
 			Color = Theme.Colors.TextSecondary,
@@ -148,11 +150,20 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 			end,
 			Parent = card,
 		})
-		entry = { item = item, status = status, button = button }
+		entry = { item = item, status = status, button = button, frame = card, description = description }
 		table.insert(cards, entry)
 	end
 
+	local function layout()
+		local narrow = body.AbsoluteSize.X < 540
+		for _, card in cards do
+			card.frame.Size = UDim2.new(1, -8, 0, if narrow then 196 else 118)
+			card.description.Size = UDim2.new(1, -200, 0, if narrow then 138 else 64)
+		end
+	end
+	body:GetPropertyChangedSignal("AbsoluteSize"):Connect(layout)
 	local function render()
+		layout()
 		local profile = ClientState.get("profile")
 		local inMatch = ClientState.isLiveParticipant()
 		if not profile or not profile.loaded then

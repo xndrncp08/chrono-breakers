@@ -6,6 +6,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
@@ -112,18 +113,30 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 	kicker.ZIndex = 43
 
 	local shownFor: string? = nil
+	local entrance: Tween? = nil
+	local revealScale = Create("UIScale", { Scale = 1, Parent = accent }) :: UIScale
 
 	local function hide()
+		if entrance then
+			entrance:Cancel()
+			entrance = nil
+		end
+		revealScale.Scale = 1
 		root.Visible = false
 	end
 
 	local function show(role: any)
 		local color = (Theme.RoleColors :: any)[role.role] or Theme.Colors.Stable
-		roleName.Text = string.upper(role.displayName)
+		local class = ClassConfig.get(role.classId)
+		roleName.Text = string.upper(if class then class.Name else role.displayName)
+		if class then
+			color = class.Color
+		end
+		kicker.Text = `DEPLOYMENT / {string.upper(role.mapName or "CHRONOS VAULT")} / {role.role}`
 		roleName.TextColor3 = color
 		tagline.Text = role.tagline
 		tagline.TextColor3 = color
-		description.Text = role.description
+		description.Text = if class then class.Description else role.description
 		local names = {}
 		for _, abilityId in role.abilities do
 			local definition = AbilityConfig.get(abilityId)
@@ -141,10 +154,17 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 		deps.AudioController.Play("RoleReveal")
 		local settings = ClientState.get("settings")
 		if not (settings and settings.ReducedMotion) then
-			accent.Size = UDim2.fromScale(1, 0)
-			TweenService:Create(accent, TweenInfo.new(Theme.Motion.Slow, Enum.EasingStyle.Quart), {
-				Size = UDim2.new(1, 0, 0, 260),
-			}):Play()
+			if entrance then
+				entrance:Cancel()
+			end
+			revealScale.Scale = 0.97
+			entrance = TweenService:Create(
+				revealScale,
+				TweenInfo.new(Theme.Motion.Normal, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Scale = 1 }
+			)
+			local current = entrance :: Tween
+			current:Play()
 		end
 	end
 
@@ -162,6 +182,13 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 	end
 
 	ClientState.changed:Connect(function(key: string)
+		if key == "settings" and ClientState.get("settings").ReducedMotion then
+			if entrance then
+				entrance:Cancel()
+				entrance = nil
+			end
+			revealScale.Scale = 1
+		end
 		if key == "role" or key == "snapshot" then
 			evaluate()
 		end

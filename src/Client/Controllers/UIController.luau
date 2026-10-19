@@ -4,6 +4,7 @@
 --   * Role reveal, results, loadout, settings, toasts/banners, and the connection overlay.
 --   * Scale = viewport-height factor (clamped for phones) × the player's UIScale setting.
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
@@ -47,7 +48,7 @@ local function computeScale(): number
 	base = math.min(base, math.max(0.6, viewport.X / 900))
 	local settings = ClientState.get("settings")
 	local userScale = if settings and settings.UIScale then settings.UIScale else 1
-	return base * userScale
+	return if ClientState.get("inputType") == "Touch" then math.clamp(base * userScale, 0.8, 1.3) else base * userScale
 end
 
 local function applyScale()
@@ -73,6 +74,14 @@ local function route()
 		)
 	hud.SetVisible(showHud)
 	lobby.SetVisible(not showHud)
+	if
+		not showHud
+		and ClientState.get("inputType") == "Gamepad"
+		and not ClientState.get("modal")
+		and GuiService.SelectedObject == nil
+	then
+		GuiService.SelectedObject = lobby.GetDefaultSelection()
+	end
 	if live and career then
 		career.Modal:Close()
 	end
@@ -213,8 +222,9 @@ function UIController.Start()
 	ClientState.changed:Connect(function(key: string)
 		if key == "snapshot" or key == "role" then
 			route()
-		elseif key == "settings" then
+		elseif key == "settings" or key == "inputType" then
 			applyScale()
+			route()
 		end
 	end)
 	local camera = Workspace.CurrentCamera
