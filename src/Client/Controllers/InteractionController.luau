@@ -199,8 +199,11 @@ local function track(model: Instance)
 		return
 	end
 	local id = model:GetAttribute("TerminalId")
-	if type(id) ~= "string" or markers[id] then
+	if type(id) ~= "string" then
 		return
+	end
+	if markers[id] then
+		markers[id].gui:Destroy()
 	end
 	local marker = createMarker(model)
 	if marker then
@@ -223,6 +226,9 @@ local function createExtractionMarker()
 	local pad = vault and vault:FindFirstChild("ExtractionPad")
 	if not pad then
 		return
+	end
+	if extractionMarker then
+		extractionMarker:Destroy()
 	end
 	local gui = Create("BillboardGui", {
 		Name = "ExtractionMarker",
@@ -266,6 +272,22 @@ function InteractionController.Start()
 		track(model)
 	end
 	CollectionService:GetInstanceAddedSignal(TERMINAL_TAG):Connect(track)
+	CollectionService:GetInstanceRemovedSignal(TERMINAL_TAG):Connect(function(model: Instance)
+		local id = model:GetAttribute("TerminalId")
+		if type(id) ~= "string" then
+			return
+		end
+		local marker = markers[id]
+		if marker and marker.model == model then
+			marker.gui:Destroy()
+			markers[id] = nil
+		end
+	end)
+	Workspace.DescendantAdded:Connect(function(instance)
+		if instance.Name == "ExtractionPad" and instance:IsA("BasePart") then
+			task.defer(createExtractionMarker)
+		end
+	end)
 	task.spawn(function()
 		-- The vault is built by the server at startup; wait briefly for it to replicate.
 		local root = Workspace:WaitForChild("ChronoBreakers", 30)

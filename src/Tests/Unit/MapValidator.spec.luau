@@ -15,6 +15,14 @@ return function(t: any)
 			end
 		end)
 
+		t.it("validates every registered authored map", function()
+			for id, map in MapLayout.Maps do
+				local errors = MapValidator.validate(map, TerminalConfig.RequiredHacks)
+				assert(#errors == 0, id .. ": " .. table.concat(errors, "; "))
+				t.expect(#map.infiltratorSpawns).toBe(4)
+			end
+		end)
+
 		t.it("has exactly three distinct terminals", function()
 			t.expect(#MapLayout.Vault.terminals).toBe(3)
 		end)

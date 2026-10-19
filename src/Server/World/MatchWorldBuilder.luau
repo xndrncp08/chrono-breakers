@@ -229,7 +229,7 @@ local function makeLobbySign(lobby: MapLayout.LobbyDefinition, parent: Instance)
 	subtitle.Parent = gui
 end
 
-function MatchWorldBuilder.build(): BuiltWorld
+function MatchWorldBuilder.build(selectedMap: MapLayout.MapDefinition?): BuiltWorld
 	local existing = Workspace:FindFirstChild("ChronoBreakers")
 	if existing then
 		existing:Destroy()
@@ -268,7 +268,7 @@ function MatchWorldBuilder.build(): BuiltWorld
 	local static = Instance.new("Folder")
 	static.Name = "Static"
 	static.Parent = vault
-	local map = MapLayout.Vault
+	local map = selectedMap or MapLayout.Vault
 	for _, box in map.boxes do
 		makePart(box, static)
 	end
@@ -319,6 +319,7 @@ function MatchWorldBuilder.build(): BuiltWorld
 	runtime.Name = "Runtime"
 	runtime.Parent = root
 
+	root:SetAttribute("MapName", map.name)
 	root.Parent = Workspace
 
 	return {

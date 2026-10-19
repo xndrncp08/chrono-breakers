@@ -143,6 +143,7 @@ export type Params = {
 	world: WorldQuery,
 	queue: QueueModel.QueueModel?,
 	terminals: { TerminalSpec },
+	prepareMatch: (({ number }) -> { TerminalSpec })?,
 	newMatchId: () -> string,
 	randomIndex: (n: number) -> number,
 	now: number,
@@ -704,7 +705,8 @@ function MatchDirector.new(params: Params): MatchDirector
 		local objectives = ObjectiveTracker.new(config.requiredHacks)
 		local terminals: { [string]: TerminalModel.TerminalModel } = {}
 		local terminalOrder: { string } = {}
-		for _, spec in params.terminals do
+		local specs: { TerminalSpec } = if params.prepareMatch then params.prepareMatch(order) else params.terminals
+		for _, spec in specs do
 			terminals[spec.id] = TerminalModel.new(spec.id, spec.name)
 			table.insert(terminalOrder, spec.id)
 			objectives:register(spec.id)
