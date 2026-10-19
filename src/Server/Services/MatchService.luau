@@ -204,6 +204,9 @@ function MatchService.BuildSnapshot(): any
 	snapshot.anomaly = deps.AnomalyService.Snapshot()
 	snapshot.mapId = deps.WorldService.GetMapId()
 	snapshot.mapName = deps.WorldService.GetMap().name
+	for _, participant in snapshot.participants do
+		participant.classId = matchClasses[participant.userId]
+	end
 	snapshot.mapVotes = {}
 	for userId, id in mapVotes do
 		if getDirector().queue:contains(userId) then

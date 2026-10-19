@@ -3,6 +3,8 @@
 -- exposes read-only world queries (spawns, terminal positions, extraction membership, raycasts).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
@@ -19,6 +21,7 @@ local world: MatchWorldBuilder.BuiltWorld? = nil
 local geometryParams: RaycastParams? = nil
 local selectedId = "Vault"
 local selectedMap = MapLayout.Vault
+local lightingTween: Tween? = nil
 
 local function getWorld(): MatchWorldBuilder.BuiltWorld
 	assert(world, "WorldService used before Init")
@@ -43,6 +46,10 @@ end
 function WorldService.SelectMap(mapId: string)
 	local map = (MapLayout.Maps :: any)[mapId]
 	assert(map, "unknown map")
+	if lightingTween then
+		lightingTween:Cancel()
+		lightingTween = nil
+	end
 	selectedId, selectedMap = mapId, map
 	world = MatchWorldBuilder.build(map)
 	if geometryParams then
@@ -126,6 +133,17 @@ function WorldService.IsInsideVault(position: Vector3): boolean
 end
 
 function WorldService.SetExtractionOpen(open: boolean)
+	if lightingTween then
+		lightingTween:Cancel()
+	end
+	local atmosphere = (Theme.Atmospheres :: any)[selectedMap.name]
+	lightingTween = TweenService:Create(
+		Lighting,
+		TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+		{ Ambient = if open then Theme.Colors.StableDim else atmosphere.Ambient }
+	)
+	local current = lightingTween :: Tween
+	current:Play()
 	local w = getWorld()
 	w.gate:SetAttribute("Open", open)
 	w.gate.CanCollide = not open

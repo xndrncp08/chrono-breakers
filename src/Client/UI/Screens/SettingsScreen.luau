@@ -91,7 +91,7 @@ function SettingsScreen.new(parent: Instance, deps: { [string]: any })
 	local function volumeRow(label: string, key: string, order: number, note: string?)
 		local frame = row(label, order)
 		local bar = ProgressBar.new({
-			Size = UDim2.new(0.3, 0, 0, 16),
+			Size = UDim2.new(0.2, 0, 0, 16),
 			Position = UDim2.fromScale(0.4, 0.5),
 			AnchorPoint = Vector2.new(0, 0.5),
 			Parent = frame,
@@ -169,7 +169,7 @@ function SettingsScreen.new(parent: Instance, deps: { [string]: any })
 			buttons[index] = Button.new({
 				Text = option.label,
 				Style = "Secondary",
-				Size = UDim2.fromOffset(100, Theme.MinTouchTarget),
+				Size = UDim2.new(1 / 3, -6, 0, Theme.MinTouchTarget),
 				LayoutOrder = index,
 				TextSize = Theme.TextSize.Small,
 				OnActivated = function()

@@ -117,6 +117,7 @@ function Style.panel(props: PanelProps): Frame
 	}, {
 		Style.corner(props.Radius) :: Instance,
 		Style.stroke(props.StrokeColor or Theme.Colors.Border, Theme.Stroke.Thin, 0.2),
+		Style.gradient(Color3.new(1, 1, 1), Color3.fromRGB(190, 204, 236), 110),
 	})
 	if props.Padding then
 		Style.padding(props.Padding).Parent = frame

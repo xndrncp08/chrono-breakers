@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
 local ClientState = require(script.Parent.Parent.ClientState)
@@ -33,6 +34,7 @@ type Marker = {
 }
 
 local markers: { [string]: Marker } = {}
+local teammates: { [number]: BillboardGui } = {}
 local extractionMarker: BillboardGui? = nil
 local markerFolder: Folder? = nil
 local resetDisabled = false
@@ -160,8 +162,59 @@ local function refreshMarkers()
 			marker.detail.TextColor3 = color
 		end
 	end
+	local seen: { [number]: boolean } = {}
+	local snapshot = ClientState.get("snapshot")
+	if live and role == "Infiltrator" and snapshot then
+		for _, participant in snapshot.participants do
+			if
+				participant.role ~= "Infiltrator"
+				or participant.userId == player.UserId
+				or participant.status ~= "Active"
+			then
+				continue
+			end
+			local other = Players:GetPlayerByUserId(participant.userId)
+			local character = other and other.Character
+			local allyRoot = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if allyRoot and humanoid then
+				seen[participant.userId] = true
+				local gui = teammates[participant.userId]
+				if not gui then
+					gui = Create("BillboardGui", {
+						Name = "Teammate",
+						Adornee = allyRoot,
+						AlwaysOnTop = true,
+						Size = UDim2.fromOffset(170, 40),
+						StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0),
+						MaxDistance = 2000,
+						Parent = markerFolder,
+					}) :: BillboardGui
+					Style.text({
+						Name = "Label",
+						TextSize = Theme.TextSize.Small,
+						Size = UDim2.fromScale(1, 1),
+						XAlign = Enum.TextXAlignment.Center,
+						Parent = gui,
+					})
+					teammates[participant.userId] = gui
+				end
+				gui.Adornee = allyRoot
+				local label = gui:FindFirstChild("Label") :: TextLabel
+				local class = ClassConfig.get(participant.classId)
+				label.Text = `{participant.name} / {math.ceil(humanoid.Health)} HP`
+				label.TextColor3 = if class then class.Color else Theme.Colors.Stable
+			end
+		end
+	end
+	for userId, gui in teammates do
+		if not seen[userId] then
+			gui:Destroy()
+			teammates[userId] = nil
+		end
+	end
+
 	if extractionMarker then
-		local snapshot = ClientState.get("snapshot")
 		extractionMarker.Enabled = live and role == "Infiltrator" and snapshot ~= nil and snapshot.extractionActive
 	end
 end

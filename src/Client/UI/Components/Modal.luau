@@ -2,12 +2,14 @@
 -- Centred modal dialog with a dimmed backdrop, title bar, close button, and gamepad support
 -- (ButtonB / Escape-equivalent closes it; first selectable child receives focus on open).
 
+local TweenService = game:GetService("TweenService")
 local ContextActionService = game:GetService("ContextActionService")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
+local ClientState = require(script.Parent.Parent.Parent.ClientState)
 local Button = require(script.Parent.Button)
 local Create = require(script.Parent.Create)
 local Style = require(script.Parent.Style)
@@ -60,11 +62,27 @@ function Modal.new(props: {
 	Create("UISizeConstraint", { MaxSize = Vector2.new(props.Width, props.Height), Parent = window })
 	-- Keep the window inside small screens.
 	window.Size = UDim2.fromScale(0.94, 0.9)
-	Create("UIAspectRatioConstraint", {
-		AspectRatio = props.Width / props.Height,
-		DominantAxis = Enum.DominantAxis.Width,
-		Parent = window,
-	})
+	local motionScale = Create("UIScale", { Scale = 1, Parent = window }) :: UIScale
+	local transition: Tween? = nil
+	local previousSelection: GuiObject? = nil
+	local function animateScale(to: number)
+		if transition then
+			transition:Cancel()
+			transition = nil
+		end
+		local settings = ClientState.get("settings")
+		if settings and settings.ReducedMotion then
+			motionScale.Scale = to
+			return
+		end
+		transition = TweenService:Create(
+			motionScale,
+			TweenInfo.new(Theme.Motion.Normal, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+			{ Scale = to }
+		)
+		local current = transition :: Tween
+		current:Play()
+	end
 
 	local title = Style.text({
 		Name = "Title",
@@ -81,12 +99,26 @@ function Modal.new(props: {
 	local body = Create("Frame", {
 		Name = "Body",
 		BackgroundTransparency = 1,
-		Position = UDim2.fromOffset(Theme.Spacing.XL, 68),
-		Size = UDim2.new(1, -Theme.Spacing.XL * 2, 1, -68 - Theme.Spacing.XL),
+		Position = UDim2.fromOffset(Theme.Spacing.XL, 84),
+		Size = UDim2.new(1, -Theme.Spacing.XL * 2, 1, -84 - Theme.Spacing.XL),
 		Parent = window,
 	}) :: Frame
 
 	local self = { Root = root, Body = body } :: any
+	ClientState.observe("settings", function(value)
+		if value and value.ReducedMotion then
+			if transition then
+				transition:Cancel()
+				transition = nil
+			end
+			motionScale.Scale = 1
+		end
+	end)
+	ClientState.observe("modal", function(name)
+		if open and name ~= props.Name then
+			self:Close()
+		end
+	end)
 
 	local closeButton = Button.new({
 		Text = "Close",
@@ -116,7 +148,11 @@ function Modal.new(props: {
 			return
 		end
 		open = true
+		previousSelection = GuiService.SelectedObject
+		ClientState.set("modal", props.Name)
 		root.Visible = true
+		motionScale.Scale = 0.97
+		animateScale(1)
 		ContextActionService:BindActionAtPriority(actionName, function(_, inputState)
 			if inputState == Enum.UserInputState.Begin then
 				self:Close()
@@ -131,10 +167,20 @@ function Modal.new(props: {
 			return
 		end
 		open = false
+		if transition then
+			transition:Cancel()
+			transition = nil
+		end
+		motionScale.Scale = 1
 		root.Visible = false
+		if ClientState.get("modal") == props.Name then
+			ClientState.set("modal", nil)
+		end
 		ContextActionService:UnbindAction(actionName)
 		if GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(root) then
-			GuiService.SelectedObject = nil
+			GuiService.SelectedObject = if previousSelection and previousSelection.Parent
+				then previousSelection
+				else nil
 		end
 		if props.OnClosed then
 			props.OnClosed()

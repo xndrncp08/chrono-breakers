@@ -3,6 +3,7 @@
 -- and entry points to Loadout, Settings, and Spectate. Visible whenever the local player is not an
 -- active match participant. Every state shown here comes from the server (snapshot/queue/profile).
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -370,12 +371,15 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 	local self = {}
 	function self.SetVisible(visible: boolean)
 		root.Visible = visible
+		if not visible and GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(root) then
+			GuiService.SelectedObject = nil
+		end
 		if not visible and ClientState.get("spectating") then
 			deps.CameraController.Stop()
 		end
 	end
 	function self.GetDefaultSelection(): GuiObject
-		return queueButton.Instance
+		return if queueButton.Instance.Selectable then queueButton.Instance else loadoutButton.Instance
 	end
 	return self
 end

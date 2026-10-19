@@ -53,9 +53,13 @@ function ButtonModule.new(props: ButtonProps): Button
 	local label = props.Text
 
 	local stroke = Style.stroke(PALETTE[style].stroke, Theme.Stroke.Regular, 0)
+	local size = props.Size or UDim2.fromOffset(200, Theme.MinTouchTarget)
+	if size.Y.Scale == 0 then
+		size = UDim2.new(size.X.Scale, size.X.Offset, 0, math.max(size.Y.Offset, Theme.MinTouchTarget))
+	end
 	local instance = Create("TextButton", {
 		Name = "Button_" .. string.gsub(props.Text, "%W", ""),
-		Size = props.Size or UDim2.fromOffset(200, Theme.MinTouchTarget),
+		Size = size,
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		LayoutOrder = props.LayoutOrder or 0,
@@ -118,6 +122,7 @@ function ButtonModule.new(props: ButtonProps): Button
 		instance.Text = if loading then "…" else label
 		hint.TextColor3 = instance.TextColor3
 		instance.Active = enabled and not loading
+		instance.Selectable = enabled and not loading
 		instance.AutoButtonColor = false
 	end
 
