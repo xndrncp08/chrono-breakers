@@ -219,10 +219,20 @@ local function fire(remoteName: string, args: { any }, collectFor: number, raw: 
 	return collected
 end
 
-local function pressPrompt(terminalName: string): string
-	local root = workspace:FindFirstChild("ChronoBreakers")
-	local terminal = root and root.Vault.Static.Terminals:FindFirstChild(terminalName)
-	local prompt = terminal and terminal:FindFirstChild("HackPrompt", true) :: ProximityPrompt?
+local function pressPrompt(terminalName: string?, path: string?): string
+	local prompt: ProximityPrompt? = nil
+	if path then
+		-- Full instance path from the server (e.g. a Gate Relay or Stasis Pod prompt).
+		local node: Instance? = game
+		for name in string.gmatch(path, "[^%.]+") do
+			node = if node then node:FindFirstChild(name) else nil
+		end
+		prompt = if node and node:IsA("ProximityPrompt") then node else nil
+	else
+		local root = workspace:FindFirstChild("ChronoBreakers")
+		local terminal = root and root.Vault.Static.Terminals:FindFirstChild(terminalName or "")
+		prompt = terminal and terminal:FindFirstChild("HackPrompt", true) :: ProximityPrompt?
+	end
 	if not prompt then
 		return "missing"
 	end
@@ -259,7 +269,7 @@ channel.OnClientEvent:Connect(function(message: any)
 			conn:Disconnect()
 			return collected
 		elseif cmd == "prompt" then
-			return pressPrompt(args.terminal)
+			return pressPrompt(args.terminal, args.path)
 		elseif cmd == "camera" then
 			-- Visual review only: frame a shot from the server (e.g. via the Studio MCP plugin).
 			local cam = workspace.CurrentCamera

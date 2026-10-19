@@ -576,7 +576,8 @@ function SurvivalService.SetupCharacter(player: Player, character: Model, roleId
 		prompt:SetAttribute("TargetUserId", player.UserId)
 		prompt.Parent = attachment
 		prompt.Triggered:Connect(function(by: Player)
-			if by ~= player then
+			-- Self-triggers only matter for Patch (Field Patch); the director rejects anything else.
+			if by ~= player or kind == "Heal" then
 				SurvivalService.Request(by, kind, player.UserId)
 			end
 		end)

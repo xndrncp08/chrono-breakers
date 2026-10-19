@@ -92,6 +92,43 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 		deps.InputController.CancelTargeting()
 	end)
 
+	-- Touch sprint: hold to sprint (the server spends stamina and may refuse).
+	local sprintButton = Create("TextButton", {
+		Name = "SprintButton",
+		Size = UDim2.fromOffset(Theme.MinTouchTarget + 16, Theme.MinTouchTarget + 16),
+		AnchorPoint = Vector2.new(1, 1),
+		Position = UDim2.new(1, -(Theme.Spacing.L + 96), 1, -(Theme.Spacing.L + 24)),
+		BackgroundColor3 = Theme.Colors.SurfaceRaised,
+		BackgroundTransparency = 0.15,
+		Text = "SPRINT",
+		Font = Theme.Fonts.Heading,
+		TextSize = Theme.TextSize.Small,
+		TextColor3 = Theme.Colors.Stable,
+		AutoButtonColor = false,
+		Visible = false,
+		Parent = parent,
+	}, { Style.corner(Theme.Radius.Pill) :: Instance, Style.stroke(Theme.Colors.Stable, Theme.Stroke.Regular, 0) }) :: TextButton
+	sprintButton.InputBegan:Connect(function(input: InputObject)
+		if
+			input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+		then
+			deps.InputController.SetSprint(true)
+			sprintButton.BackgroundColor3 = Theme.Colors.Stable
+			sprintButton.TextColor3 = Theme.Colors.TextOnAccent
+		end
+	end)
+	sprintButton.InputEnded:Connect(function(input: InputObject)
+		if
+			input.UserInputType == Enum.UserInputType.Touch
+			or input.UserInputType == Enum.UserInputType.MouseButton1
+		then
+			deps.InputController.SetSprint(false)
+			sprintButton.BackgroundColor3 = Theme.Colors.SurfaceRaised
+			sprintButton.TextColor3 = Theme.Colors.Stable
+		end
+	end)
+
 	local slots: { Slot } = {}
 
 	local function clear()
@@ -259,6 +296,12 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 		end
 		local targetingDef = if targeting then AbilityConfig.get(targeting) else nil
 		local touch = ClientState.get("inputType") == "Touch"
+		local role = ClientState.currentRole()
+		sprintButton.Visible = bar.Visible
+			and touch
+			and role ~= nil
+			and role.role == "Infiltrator"
+			and ClientState.canAct()
 		targetingRow.Visible = targetingDef ~= nil and touch
 		targetingLabel.Visible = targetingDef ~= nil
 		if targetingDef then
@@ -302,7 +345,7 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 	local accumulator = 0
 	RunService.Heartbeat:Connect(function(dt)
 		accumulator += dt
-		if accumulator >= 0.1 and #slots > 0 then
+		if accumulator >= 0.1 and (#slots > 0 or sprintButton.Visible) then
 			accumulator = 0
 			refresh()
 		end
@@ -321,6 +364,7 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 	function self.SetVisible(visible: boolean)
 		bar.Visible = visible
 		if not visible then
+			sprintButton.Visible = false
 			targetingRow.Visible = false
 			targetingLabel.Visible = false
 			deps.InputController.CancelTargeting()

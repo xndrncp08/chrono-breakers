@@ -1,11 +1,16 @@
 --!strict
 -- Loadout & shop: every catalogue item with its slot, description, and state — Equipped, Owned
--- (Equip), Locked (Buy for N / Need N more). Purchases and equips are requests; the UI updates only
--- from the server's ProfileSnapshot / ActionResult. Changes are blocked during a live match.
+-- (Equip), Locked (Buy for N / Need N more) — followed by perks (Protocols / Edicts), which unlock
+-- only through level or mastery and toggle into the matching two-slot loadout. Purchases and
+-- equips are requests; the UI updates only from the server's ProfileSnapshot / ActionResult.
+-- Changes are blocked during a live match.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
+local PerkConfig = require(ReplicatedStorage.Shared.Config.PerkConfig)
+local ProgressionConfig = require(ReplicatedStorage.Shared.Config.ProgressionConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
@@ -154,6 +159,128 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 		table.insert(cards, entry)
 	end
 
+	-- Perks
+	type PerkCard = { perk: PerkConfig.Perk, status: TextLabel, button: Button.Button }
+	local perkCards: { PerkCard } = {}
+	local itemCount = #cards
+	Style.text({
+		Text = `PROTOCOLS & EDICTS · {PerkConfig.Slots} per loadout · unlocked by playing, never bought`,
+		Font = Theme.Fonts.Heading,
+		TextSize = Theme.TextSize.Small,
+		Color = Theme.Colors.Temporal,
+		Size = UDim2.new(1, -8, 0, 28),
+		LayoutOrder = itemCount + 1,
+		Parent = list,
+	})
+	local function loadoutKey(perk: PerkConfig.Perk, profile: any): string
+		if perk.Role == "TimeKeeper" then
+			return "TimeKeeper"
+		end
+		return perk.Class or (profile and profile.equipped.Class) or "Ghost"
+	end
+	for index, perk in PerkConfig.list() do
+		local card = Style.panel({
+			Name = `Perk_{perk.Id}`,
+			Size = UDim2.new(1, -8, 0, 92),
+			Color = Theme.Colors.SurfaceRaised,
+			Transparency = 0.1,
+			Padding = Theme.Spacing.M,
+			LayoutOrder = itemCount + 1 + index,
+			Parent = list,
+		})
+		local class = ClassConfig.get(perk.Class)
+		local owner = if perk.Role == "TimeKeeper" then "EDICT" elseif class then string.upper(class.Name) else "SHARED"
+		Style.text({
+			Text = `{perk.Name}  ·  {owner}`,
+			Font = Theme.Fonts.Heading,
+			TextSize = Theme.TextSize.Body,
+			Size = UDim2.new(1, -200, 0, 22),
+			Wrapped = false,
+			Color = if perk.Role == "TimeKeeper"
+				then Theme.Colors.Temporal
+				elseif class then class.Color
+				else Theme.Colors.Stable,
+			Parent = card,
+		})
+		Style.text({
+			Text = perk.Description,
+			TextSize = Theme.TextSize.Small,
+			Color = Theme.Colors.TextSecondary,
+			Size = UDim2.new(1, -200, 0, 36),
+			Position = UDim2.fromOffset(0, 24),
+			YAlign = Enum.TextYAlignment.Top,
+			Parent = card,
+		})
+		local status = Style.text({
+			Font = Theme.Fonts.Heading,
+			TextSize = Theme.TextSize.Micro,
+			AnchorPoint = Vector2.new(1, 0),
+			Position = UDim2.fromScale(1, 0),
+			Size = UDim2.fromOffset(190, 18),
+			XAlign = Enum.TextXAlignment.Right,
+			Parent = card,
+		})
+		local button = Button.new({
+			Text = "",
+			Style = "Secondary",
+			Size = UDim2.fromOffset(170, 40),
+			AnchorPoint = Vector2.new(1, 1),
+			Position = UDim2.fromScale(1, 1),
+			TextSize = Theme.TextSize.Small,
+			OnActivated = function()
+				pendingItem = perk.Id
+				deps.AudioController.Play("UiClick")
+				Net.send(RemoteNames.ShopRequest, Protocol.ShopActions.TogglePerk, perk.Id)
+			end,
+			Parent = card,
+		})
+		table.insert(perkCards, { perk = perk, status = status, button = button })
+	end
+
+	local function renderPerks(profile: any, inMatch: boolean)
+		local progression = profile and profile.progression
+		local progress = {
+			xp = if progression then progression.xp else 0,
+			mastery = if progression then progression.mastery else {},
+		}
+		for _, card in perkCards do
+			local perk = card.perk
+			local key = loadoutKey(perk, profile)
+			local equipped = profile and profile.perks and profile.perks[key] or {}
+			local unlocked = profile ~= nil and PerkConfig.isUnlocked(perk, key, progress)
+			if pendingItem ~= perk.Id then
+				card.button:SetLoading(false)
+			end
+			if not profile or not profile.loaded then
+				card.status.Text = ""
+				card.button:SetText("…")
+				card.button:SetEnabled(false)
+			elseif table.find(equipped, perk.Id) then
+				card.status.Text = `✓ EQUIPPED · {key}`
+				card.status.TextColor3 = Theme.Colors.Success
+				card.button:SetText("Unequip")
+				card.button:SetEnabled(not inMatch)
+			elseif unlocked then
+				card.status.Text = `{#equipped}/{PerkConfig.Slots} · {key}`
+				card.status.TextColor3 = Theme.Colors.Stable
+				card.button:SetText("Equip")
+				card.button:SetEnabled(not inMatch and #equipped < PerkConfig.Slots)
+			else
+				local need = perk.Unlock.Value
+				local masteryKey = if perk.Role == "TimeKeeper" then "TimeKeeper" else key
+				local have = if perk.Unlock.Kind == "Level"
+					then ProgressionConfig.level(progress.xp)
+					else ProgressionConfig.level(progress.mastery[masteryKey] or 0)
+				card.status.Text = if perk.Unlock.Kind == "Level"
+					then `🔒 LEVEL {need} (you: {have})`
+					else `🔒 {string.upper(masteryKey)} MASTERY {need} (you: {have})`
+				card.status.TextColor3 = Theme.Colors.TextMuted
+				card.button:SetText("Locked")
+				card.button:SetEnabled(false)
+			end
+		end
+	end
+
 	local function layout()
 		local narrow = body.AbsoluteSize.X < 540
 		for _, card in cards do
@@ -211,6 +338,7 @@ function LoadoutScreen.new(parent: Instance, deps: { [string]: any })
 				card.button:SetEnabled(not item.Milestone and short <= 0 and not inMatch)
 			end
 		end
+		renderPerks(profile, inMatch)
 	end
 
 	ClientState.changed:Connect(function(key: string)

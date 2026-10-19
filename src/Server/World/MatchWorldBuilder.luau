@@ -491,17 +491,18 @@ local function makeLocker(spec: MapLayout.Fixture, parent: Instance): LockerHand
 	}
 end
 
+-- Survival-horror mood: low ambient light, dense coloured haze and pools of light from fixtures.
 local function applyLighting(map: MapLayout.MapDefinition)
 	local atmosphere = (Theme.Atmospheres :: any)[map.name]
 	Lighting.ClockTime = atmosphere.Clock
-	Lighting.Brightness = 1.2
-	Lighting.Ambient = atmosphere.Ambient
-	Lighting.OutdoorAmbient = Color3.fromRGB(56, 64, 100)
-	Lighting.EnvironmentDiffuseScale = 0.4
-	Lighting.EnvironmentSpecularScale = 0.6
+	Lighting.Brightness = 0.7
+	Lighting.Ambient = atmosphere.Ambient:Lerp(Color3.new(0, 0, 0), 0.35)
+	Lighting.OutdoorAmbient = Color3.fromRGB(26, 30, 50)
+	Lighting.EnvironmentDiffuseScale = 0.25
+	Lighting.EnvironmentSpecularScale = 0.5
 	Lighting.FogColor = atmosphere.Fog
-	Lighting.FogStart = 120
-	Lighting.FogEnd = 520
+	Lighting.FogStart = 20
+	Lighting.FogEnd = 240
 	Lighting.GlobalShadows = true
 
 	local function ensure(className: string, name: string): Instance
@@ -519,9 +520,47 @@ local function applyLighting(map: MapLayout.MapDefinition)
 	bloom.Size = 20
 	bloom.Threshold = 1.4
 	local grade = ensure("ColorCorrectionEffect", "ChronoGrade") :: ColorCorrectionEffect
-	grade.Contrast = 0.08
-	grade.Saturation = 0.05
-	grade.TintColor = Color3.fromRGB(235, 242, 255)
+	grade.Contrast = 0.14
+	grade.Saturation = -0.08
+	grade.TintColor = Color3.fromRGB(225, 232, 255)
+	local haze = ensure("Atmosphere", "ChronoAtmosphere") :: Atmosphere
+	haze.Density = 0.36
+	haze.Offset = 0.12
+	haze.Color = atmosphere.Fog:Lerp(Color3.new(1, 1, 1), 0.25)
+	haze.Decay = atmosphere.Fog
+	haze.Glare = 0
+	haze.Haze = 1.8
+end
+
+-- Hanging fixtures on a coarse grid; clients flicker them when the Keeper is near (ChronoFlicker).
+local function addLightFixtures(parent: Instance)
+	local fixtures = Instance.new("Folder")
+	fixtures.Name = "LightFixtures"
+	fixtures.Parent = parent
+	local palette = { Theme.World.TrimCyan, Theme.Colors.Temporal, Theme.Colors.Warning }
+	local index = 0
+	for _, x in { -60, 0, 60 } do
+		for _, z in { -60, 0, 60 } do
+			index += 1
+			local lamp = Instance.new("Part")
+			lamp.Name = `Fixture{index}`
+			lamp.Anchored, lamp.CanCollide, lamp.CanQuery, lamp.CanTouch = true, false, false, false
+			lamp.CastShadow = false
+			lamp.Size = Vector3.new(2.4, 0.4, 2.4)
+			lamp.Position = Vector3.new(x + 6, 17, z + 6)
+			lamp.Material = Enum.Material.Neon
+			local color = palette[(index - 1) % #palette + 1]
+			lamp.Color = color
+			local light = Instance.new("PointLight")
+			light.Color = color
+			light.Range = 34
+			light.Brightness = 1.4
+			light.Shadows = true
+			light.Parent = lamp
+			CollectionService:AddTag(light, "ChronoFlicker")
+			lamp.Parent = fixtures
+		end
+	end
 end
 
 local function makeLobbySign(lobby: MapLayout.LobbyDefinition, parent: Instance)
@@ -603,6 +642,8 @@ function MatchWorldBuilder.build(selectedMap: MapLayout.MapDefinition?): BuiltWo
 	for _, box in map.boxes do
 		makePart(box, static)
 	end
+
+	addLightFixtures(vault)
 
 	for _, landmark in map.landmarks do
 		local sign = Instance.new("Part")

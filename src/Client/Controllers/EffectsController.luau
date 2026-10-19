@@ -252,6 +252,124 @@ local function onEffect(payload: any)
 			beam(payload.position, Theme.Colors.Success, 30, 1.5)
 		end
 		audio.Play("HackComplete")
+	else
+		EffectsController.Survival(kind, payload)
+	end
+end
+
+local function myRoot(): BasePart?
+	return player.Character and player.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+end
+
+local function near(position: Vector3?, radius: number): boolean
+	local root = myRoot()
+	return root ~= nil and position ~= nil and (root.Position - position).Magnitude <= radius
+end
+
+-- Survival Protocol cues. Positional sounds carry information: a missed calibration or a dropped
+-- barrier is audible to everyone nearby, including the Keeper.
+function EffectsController.Survival(kind: string, payload: any)
+	local audio = deps.AudioController
+	if kind == "StrikeWindup" then
+		if payload.position and payload.direction then
+			local origin = payload.position + payload.direction * 3
+			local wedge = Instance.new("Part")
+			wedge.Name = "FxWindup"
+			wedge.Anchored, wedge.CanCollide, wedge.CanQuery, wedge.CanTouch = true, false, false, false
+			wedge.CastShadow = false
+			wedge.Material = Enum.Material.Neon
+			wedge.Color = Theme.Colors.Temporal
+			wedge.Transparency = 0.55
+			wedge.Size = Vector3.new(6, 0.1, 6)
+			wedge.CFrame =
+				CFrame.lookAt(origin - Vector3.new(0, 2.8, 0), origin - Vector3.new(0, 2.8, 0) + payload.direction)
+			wedge.Parent = effectsFolder
+			TweenService:Create(wedge, TweenInfo.new(payload.duration or 0.2), { Transparency = 0.15 }):Play()
+			Debris:AddItem(wedge, (payload.duration or 0.2) + 0.1)
+			audio.Play("StrikeWindup", { position = payload.position, range = 70 })
+		end
+	elseif kind == "Condition" then
+		local character = characterOf(payload.userId)
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			if payload.cause == "Revive" or payload.cause == "Heal" then
+				ring(root.Position - Vector3.new(0, 2.8, 0), 5, Theme.Colors.Success, 0.8, true)
+			elseif payload.cause == "Endured" then
+				ring(root.Position - Vector3.new(0, 2.8, 0), 5, Theme.Colors.Stable, 0.6, true)
+			elseif payload.condition == "Downed" then
+				ring(root.Position - Vector3.new(0, 2.8, 0), 9, Theme.ConditionColors.Downed, 1, true)
+				audio.Play("Groan", { position = root.Position, pitch = 0.8, range = 80 })
+			end
+		end
+		if payload.userId == player.UserId and payload.condition == "Downed" then
+			flash(Theme.Colors.Danger, 1.2)
+			shake(0.6, 0.4)
+		end
+	elseif kind == "Contained" then
+		if payload.position then
+			beam(payload.position, Theme.ConditionColors.Contained, 40, 1.6)
+			audio.Play("PodSeal", { position = payload.position })
+		end
+		if payload.userId == player.UserId then
+			flash(Theme.Colors.Violet, 1.5)
+		end
+	elseif kind == "Rescued" then
+		local character = characterOf(payload.userId)
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		if root then
+			beam(root.Position - Vector3.new(0, 3, 0), Theme.Colors.Stable, 30, 1.2)
+			audio.Play("Rescue", { position = root.Position })
+		end
+	elseif kind == "Vault" then
+		audio.Play("Vault", { position = payload.position, range = 70 })
+	elseif kind == "RailSealed" then
+		ring(payload.position, 4, Theme.Colors.Danger, payload.duration or 3, false)
+	elseif kind == "BarrierDropped" then
+		ring(payload.position, 6, Theme.Colors.Temporal, 0.6, true)
+		audio.Play("BarrierDrop", { position = payload.position, range = 110 })
+		if near(payload.position, 10) then
+			shake(0.4, 0.25)
+		end
+	elseif kind == "KeeperStunned" then
+		local keeper = characterOf(payload.userId)
+		if keeper then
+			highlight(keeper, Theme.Colors.Warning, payload.duration or 2)
+		end
+	elseif kind == "BarrierBreaking" then
+		ring(payload.position, 5, Theme.Colors.Danger, payload.duration or 2, false)
+	elseif kind == "BarrierBroken" then
+		audio.Play("BarrierDrop", { position = payload.position, pitch = 0.6, range = 110 })
+	elseif kind == "Door" then
+		audio.Play("Door", { position = payload.position, range = 80 })
+	elseif kind == "LockerEntered" or kind == "LockerLeft" or kind == "LockerEjected" then
+		local character = characterOf(payload.userId)
+		local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+		audio.Play("Door", { position = payload.position or (root and root.Position), pitch = 1.6, range = 45 })
+	elseif kind == "LockerSearch" then
+		ring(payload.position, 3, Theme.Colors.Temporal, payload.duration or 1, false)
+	elseif kind == "CalibrationMiss" then
+		if payload.position then
+			ring(payload.position, 7, Theme.Colors.Danger, 0.7, true)
+			audio.Play("CalibrationMiss", { position = payload.position, range = 160 })
+		end
+	elseif kind == "Overloaded" then
+		if payload.position then
+			ring(payload.position, 5, Theme.Colors.Danger, 1.2, true)
+			audio.Play("BarrierDrop", { position = payload.position, pitch = 1.4, range = 90 })
+		end
+	elseif kind == "Shockwave" then
+		local root = myRoot()
+		if root then
+			ring(root.Position - Vector3.new(0, 2.8, 0), 40, Theme.Colors.Violet, 1.2, true)
+		end
+		audio.Play("Shockwave")
+		flash(Theme.Colors.Violet, 0.6)
+		shake(0.3, 0.5)
+	elseif kind == "RiftOpened" then
+		if payload.position then
+			beam(payload.position, Theme.World.Rift, 60, 3)
+		end
+		audio.Play("ExtractionOpen")
 	end
 end
 
@@ -288,6 +406,16 @@ end
 
 function EffectsController.Start()
 	Net.on(RemoteNames.Effect, onEffect)
+	ClientState.changed:Connect(function(key: string, value: any)
+		if key == "calibration" and value ~= nil then
+			deps.AudioController.Play("CalibrationCue")
+		elseif key == "calibrationResult" and type(value) == "table" then
+			if value.grade == "Great" then
+				deps.AudioController.Play("CalibrationGreat")
+			end
+			deps.UIController.CalibrationResult(value.grade)
+		end
+	end)
 	ClientState.observe("movement", updateStatusTint)
 	ClientState.observe("settings", function()
 		updateStatusTint(ClientState.get("movement"))
