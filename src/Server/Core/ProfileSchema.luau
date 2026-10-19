@@ -3,6 +3,8 @@
 -- See docs/DATA_SCHEMA.md. Every field has a safe default; anything malformed is replaced.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local ProgressionConfig = require(ReplicatedStorage.Shared.Config.ProgressionConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
 
@@ -23,9 +25,19 @@ export type Stats = {
 	Extractions: number,
 	Eliminations: number,
 	KeeperMatches: number,
+	HackAssists: number,
+	KeeperWins: number,
 	InfiltratorMatches: number,
 }
 
+export type ChallengePeriod = { Period: number, Progress: { [string]: number }, Claimed: { [string]: boolean } }
+export type Progression = {
+	XP: number,
+	Mastery: { [string]: number },
+	Milestones: { [string]: boolean },
+	Daily: ChallengePeriod,
+	Weekly: ChallengePeriod,
+}
 export type Profile = {
 	SchemaVersion: number,
 	ChronosScrap: number,
@@ -34,11 +46,12 @@ export type Profile = {
 	Stats: Stats,
 	Settings: Settings,
 	RecentMatchIds: { string },
+	Progression: Progression,
 }
 
 local ProfileSchema = {}
 
-ProfileSchema.CURRENT_VERSION = 2
+ProfileSchema.CURRENT_VERSION = 3
 
 ProfileSchema.STAT_KEYS = table.freeze({
 	"MatchesPlayed",
@@ -48,6 +61,8 @@ ProfileSchema.STAT_KEYS = table.freeze({
 	"Extractions",
 	"Eliminations",
 	"KeeperMatches",
+	"HackAssists",
+	"KeeperWins",
 	"InfiltratorMatches",
 })
 
@@ -92,6 +107,13 @@ function ProfileSchema.defaults(): Profile
 		Stats = stats :: Stats,
 		Settings = ProfileSchema.defaultSettings(),
 		RecentMatchIds = {},
+		Progression = {
+			XP = 0,
+			Mastery = {},
+			Milestones = {},
+			Daily = { Period = -1, Progress = {}, Claimed = {} },
+			Weekly = { Period = -1, Progress = {}, Claimed = {} },
+		},
 	}
 end
 
@@ -141,6 +163,9 @@ ProfileSchema.MIGRATIONS = table.freeze({
 		end
 		data.Items = nil
 		data.SchemaVersion = 2
+	end,
+	[2] = function(data: { [string]: any })
+		data.SchemaVersion = 3
 	end,
 } :: { [number]: (data: { [string]: any }) -> () })
 
@@ -200,7 +225,7 @@ function ProfileSchema.reconcile(raw: { [string]: any }): Profile
 		for _, key in ProfileSchema.STAT_KEYS do
 			local value = raw.Stats[key]
 			if isFinite(value) and value >= 0 then
-				stats[key] = math.floor(value)
+				stats[key] = math.min(1000000000, math.floor(value))
 			end
 		end
 	end
@@ -223,6 +248,46 @@ function ProfileSchema.reconcile(raw: { [string]: any }): Profile
 		end
 		while #profile.RecentMatchIds > RewardConfig.RecentMatchHistorySize do
 			table.remove(profile.RecentMatchIds, 1)
+		end
+	end
+
+	local function whole(value: any, cap: number): number
+		return if isFinite(value) then math.clamp(math.floor(value), 0, cap) else 0
+	end
+	if type(raw.Progression) == "table" then
+		local progress = raw.Progression
+		profile.Progression.XP = whole(progress.XP, ProgressionConfig.MaxXP)
+		if type(progress.Mastery) == "table" then
+			for _, id in ClassConfig.Order do
+				profile.Progression.Mastery[id] = whole(progress.Mastery[id], ProgressionConfig.MaxXP)
+			end
+			profile.Progression.Mastery.TimeKeeper = whole(progress.Mastery.TimeKeeper, ProgressionConfig.MaxXP)
+		end
+		if type(progress.Milestones) == "table" then
+			for id, definition in ProgressionConfig.Milestones :: any do
+				if progress.Milestones[id] == true then
+					profile.Progression.Milestones[id] = true
+					profile.OwnedItems[definition.Item] = true
+				end
+			end
+		end
+		for _, kind in { "Daily", "Weekly" } do
+			local source = progress[kind]
+			if type(source) == "table" then
+				local target = (profile.Progression :: any)[kind]
+				target.Period = if isFinite(source.Period)
+					then math.clamp(math.floor(source.Period), -1, 1000000000)
+					else -1
+				local pool: { any } = if kind == "Daily" then ProgressionConfig.Daily else ProgressionConfig.Weekly
+				for _, definition in pool do
+					if type(source.Progress) == "table" then
+						target.Progress[definition.Id] = whole(source.Progress[definition.Id], definition.Target)
+					end
+					if type(source.Claimed) == "table" and source.Claimed[definition.Id] == true then
+						target.Claimed[definition.Id] = true
+					end
+				end
+			end
 		end
 	end
 

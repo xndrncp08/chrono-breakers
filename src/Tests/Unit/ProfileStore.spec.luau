@@ -120,6 +120,31 @@ return function(t: any)
 			t.expect(status).toBe("Loaded")
 		end)
 
+		t.it("rejects a late release even after a newer session saved and released", function()
+			local ds = MemoryDataStore.new()
+			local clock = { now = 0 }
+			local store = makeStore(ds, "jobA", clock)
+			local _, first, token = store:load(1)
+			assert(first, "first load failed")
+			first.ChronosScrap = 10
+			t.expect(store:save(1, first, true, token)).toBe("Saved")
+			local _, second, secondToken = store:load(1)
+			assert(second, "second load failed")
+			second.ChronosScrap = 900
+			t.expect(token ~= secondToken).toBe(true)
+			t.expect(store:save(1, first, true, token)).toBe("LockLost")
+			t.expect(store:save(1, second, true, secondToken)).toBe("Saved")
+			t.expect(store:save(1, first, true, token)).toBe("LockLost")
+			t.expect(ds:GetRaw("Player_1").Data.ChronosScrap).toBe(900)
+		end)
+
+		t.it("refuses a second same-server load while its first session is active", function()
+			local ds = MemoryDataStore.new()
+			local store = makeStore(ds, "jobA", { now = 0 })
+			t.expect((store:load(1))).toBe("Loaded")
+			t.expect((store:load(1))).toBe("Locked")
+		end)
+
 		t.it("does not overwrite profiles from a newer schema and releases the lock", function()
 			local ds = MemoryDataStore.new()
 			ds:SetRaw("Player_1", { Data = { SchemaVersion = 50, ChronosScrap = 3 } })

@@ -3,7 +3,7 @@
 -- Gameplay items (gadgets) are side-grades with distinct trade-offs, not strict upgrades;
 -- cosmetics (trails) have no gameplay effect. No real-money items exist.
 
-export type ItemSlot = "Gadget" | "Trail" | "Class"
+export type ItemSlot = "Gadget" | "Trail" | "Class" | "Title"
 
 export type ItemDefinition = {
 	Id: string,
@@ -15,6 +15,7 @@ export type ItemDefinition = {
 	-- Gadget items reference an AbilityConfig id; trails carry a colour.
 	AbilityId: string?,
 	Color: Color3?,
+	Milestone: string?,
 	SortOrder: number,
 }
 
@@ -95,15 +96,67 @@ for index, id in ClassConfig.Order do
 		SortOrder = 20 + index,
 	} :: ItemDefinition)
 end
+
+items.TitleRookie = {
+	Id = "TitleRookie",
+	DisplayName = "Temporal Recruit",
+	Description = "Profile title: a fresh timeline awaits.",
+	Slot = "Title",
+	Cost = 0,
+	DefaultOwned = true,
+	SortOrder = 30,
+}
+items.TitleBreaker = {
+	Id = "TitleBreaker",
+	DisplayName = "Timeline Breaker",
+	Description = "Unlock by extracting once.",
+	Slot = "Title",
+	Cost = 0,
+	DefaultOwned = false,
+	SortOrder = 31,
+	Milestone = "FirstEscape",
+}
+items.TitleWarden = {
+	Id = "TitleWarden",
+	DisplayName = "Vault Warden",
+	Description = "Unlock by winning five Keeper matches.",
+	Slot = "Title",
+	Cost = 0,
+	DefaultOwned = false,
+	SortOrder = 32,
+	Milestone = "VaultWarden",
+}
+items.TitleVeteran = {
+	Id = "TitleVeteran",
+	DisplayName = "Temporal Veteran",
+	Description = "Unlock by completing twenty heists.",
+	Slot = "Title",
+	Cost = 0,
+	DefaultOwned = false,
+	SortOrder = 33,
+	Milestone = "Veteran",
+}
+items.TrailRift = {
+	Id = "TrailRift",
+	DisplayName = "Rift Walker Trail",
+	Description = "Cosmetic: reach level ten to unlock a violet chrono-trail.",
+	Slot = "Trail",
+	Cost = 0,
+	DefaultOwned = false,
+	SortOrder = 13,
+	Milestone = "RiftWalker",
+	Color = Color3.fromRGB(156, 112, 255),
+}
 ItemConfig.Items = table.freeze(items)
 
 ItemConfig.DefaultEquipped = table.freeze({
 	Gadget = "Stabilizer",
 	Class = "Ghost",
+	Title = "TitleRookie",
 	Trail = "TrailCyan",
 })
 
-ItemConfig.Slots = table.freeze({ "Gadget", "Trail", "Class" })
+ItemConfig.Slots = table.freeze({ "Gadget", "Trail", "Class", "Title" })
 
 function ItemConfig.get(itemId: string): ItemDefinition?
 	return (ItemConfig.Items :: any)[itemId]

@@ -12,6 +12,7 @@ local Workspace = game:GetService("Workspace")
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 
 local ClientState = require(script.Parent.Parent.ClientState)
+local CareerScreen = require(script.Parent.Parent.UI.Screens.CareerScreen)
 local ConnectionOverlay = require(script.Parent.Parent.UI.Screens.ConnectionOverlay)
 local Create = require(script.Parent.Parent.UI.Components.Create)
 local DeploymentScreen = require(script.Parent.Parent.UI.Screens.DeploymentScreen)
@@ -34,6 +35,7 @@ local lobby: any = nil
 local hud: any = nil
 local loadout: any = nil
 local deployment: any = nil
+local career: any = nil
 local settingsScreen: any = nil
 local pendingMessages: { { kind: string, text: string, severity: string?, duration: number? } } = {}
 
@@ -71,6 +73,9 @@ local function route()
 		)
 	hud.SetVisible(showHud)
 	lobby.SetVisible(not showHud)
+	if live and career then
+		career.Modal:Close()
+	end
 	if live and deployment then
 		deployment.Modal:Close()
 	end
@@ -134,6 +139,9 @@ function UIController.HandleActionResult(result: any)
 end
 
 function UIController.OpenModal(name: string)
+	if career then
+		career.Modal:Close()
+	end
 	if deployment then
 		deployment.Modal:Close()
 	end
@@ -142,6 +150,10 @@ function UIController.OpenModal(name: string)
 	end
 	if settingsScreen then
 		settingsScreen.Modal:Close()
+	end
+	if name == "Career" and career then
+		career.Open()
+		return
 	end
 	if name == "Deployment" and deployment then
 		deployment.Open()
@@ -186,6 +198,7 @@ function UIController.Start()
 	ResultsScreen.new(gui, deps)
 	loadout = LoadoutScreen.new(gui, deps)
 	deployment = DeploymentScreen.new(gui)
+	career = CareerScreen.new(gui)
 	settingsScreen = SettingsScreen.new(gui, deps)
 	toasts = Toasts.new(gui)
 	for _, message in pendingMessages do
