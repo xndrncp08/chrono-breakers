@@ -6,6 +6,7 @@
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
 local Safe = require(ReplicatedStorage.Shared.Modules.Safe)
@@ -30,9 +31,11 @@ local function applyTrail(player: Player, character: Model)
 	if not root then
 		return
 	end
-	local existing = root:FindFirstChild("ChronoTrail")
-	if existing then
-		existing:Destroy()
+	for _, name in { "ChronoTrail", "ChronoTrailTop", "ChronoTrailBottom" } do
+		local existing = root:FindFirstChild(name)
+		if existing then
+			existing:Destroy()
+		end
 	end
 	local trailId = deps.InventoryService.GetEquipped(player, "Trail")
 	local item = if trailId then ItemConfig.get(trailId) else nil
@@ -86,7 +89,8 @@ local function onCharacterAdded(player: Player, character: Model)
 	local placement = deps.MatchService.ResolveSpawn(player)
 	local roleId: string? = placement.role
 	local role = if roleId then RoleConfig.get(roleId) else nil
-	local maxHealth = if role then role.MaxHealth else RoleConfig.Lobby.MaxHealth
+	local class = if roleId == "Infiltrator" then ClassConfig.get(deps.MatchService.GetMatchClass(player)) else nil
+	local maxHealth = if class then class.MaxHealth elseif role then role.MaxHealth else RoleConfig.Lobby.MaxHealth
 	humanoid.MaxHealth = maxHealth
 	humanoid.Health = maxHealth
 	humanoid.UseJumpPower = true
@@ -149,6 +153,41 @@ function CharacterService.Respawn(player: Player)
 			warn(`[CharacterService] LoadCharacter failed for user {player.UserId}: {err}`)
 		end
 	end)
+end
+
+-- Save original visual values so cleanup restores custom avatars exactly.
+function CharacterService.SetCloaked(player: Player, cloaked: boolean)
+	local character = player.Character
+	if not character or character:GetAttribute("ChronoCloaked") == cloaked then
+		return
+	end
+	character:SetAttribute("ChronoCloaked", cloaked)
+	for _, part in character:GetDescendants() do
+		if part:IsA("BasePart") or part:IsA("Decal") then
+			local visual = part :: any
+			if cloaked then
+				part:SetAttribute("ChronoTransparency", visual.Transparency)
+				visual.Transparency = 0.96
+			else
+				local previous = part:GetAttribute("ChronoTransparency")
+				if type(previous) == "number" then
+					visual.Transparency = previous
+					part:SetAttribute("ChronoTransparency", nil)
+				end
+			end
+		elseif part:IsA("Trail") then
+			if cloaked then
+				part:SetAttribute("ChronoEnabled", part.Enabled)
+				part.Enabled = false
+			else
+				local previous = part:GetAttribute("ChronoEnabled")
+				if type(previous) == "boolean" then
+					part.Enabled = previous
+					part:SetAttribute("ChronoEnabled", nil)
+				end
+			end
+		end
+	end
 end
 
 -- Refreshes cosmetics after a loadout change.

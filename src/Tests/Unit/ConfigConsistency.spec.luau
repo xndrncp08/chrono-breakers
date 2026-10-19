@@ -57,7 +57,7 @@ return function(t: any)
 					local ability = AbilityConfig.get(item.AbilityId :: string)
 					t.expect(ability ~= nil).toBe(true)
 					t.expect((ability :: any).Role).toBe("Infiltrator")
-				else
+				elseif item.Slot == "Trail" then
 					t.expect(item.Color ~= nil).toBe(true)
 				end
 				t.expect(item.Cost >= 0).toBe(true)

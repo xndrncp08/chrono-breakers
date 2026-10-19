@@ -176,7 +176,9 @@ local function updatePrompts()
 			if hidePrompts then
 				prompt.Enabled = false
 			else
-				prompt.Enabled = model:GetAttribute("State") == "Available"
+				prompt.Enabled = (
+					model:GetAttribute("State") == "Available" or model:GetAttribute("State") == "Hacking"
+				)
 			end
 		end
 	end

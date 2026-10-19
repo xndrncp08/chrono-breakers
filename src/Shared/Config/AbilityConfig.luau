@@ -75,6 +75,77 @@ AbilityConfig.Abilities = table.freeze({
 		MinDistanceFromExtraction = 12,
 	} :: AbilityDefinition),
 
+	ChronoScan = table.freeze({
+		Id = "ChronoScan",
+		DisplayName = "Chrono Pulse",
+		Description = "Warn nearby breakers, then reveal those still within 48 studs after 1.5s. Veil blocks detection.",
+		Role = "TimeKeeper",
+		Cooldown = 30,
+		TargetMode = "None",
+		KeyboardKey = "R",
+		GamepadKey = "ButtonX",
+		Radius = 48,
+		Duration = 3,
+		TelegraphDelay = 1.5,
+	} :: AbilityDefinition),
+	Veil = table.freeze({
+		Id = "Veil",
+		DisplayName = "Veil",
+		Description = "Fade from sight and block scans. Damage and hacking break stealth.",
+		Role = "Infiltrator",
+		Cooldown = 30,
+		TargetMode = "None",
+		KeyboardKey = "F",
+		GamepadKey = "ButtonY",
+		Duration = 5,
+	} :: AbilityDefinition),
+	Overclock = table.freeze({
+		Id = "Overclock",
+		DisplayName = "Overclock",
+		Description = "Accelerate your terminal channel by 50% for 6 seconds.",
+		Role = "Infiltrator",
+		Cooldown = 30,
+		TargetMode = "None",
+		KeyboardKey = "F",
+		GamepadKey = "ButtonY",
+		Duration = 6,
+	} :: AbilityDefinition),
+	Mend = table.freeze({
+		Id = "Mend",
+		DisplayName = "Mend",
+		Description = "Restore 28 health to living allies within 18 studs and line of sight.",
+		Role = "Infiltrator",
+		Cooldown = 40,
+		TargetMode = "None",
+		KeyboardKey = "F",
+		GamepadKey = "ButtonY",
+		Radius = 18,
+		Healing = 28,
+	} :: AbilityDefinition),
+	Slipstream = table.freeze({
+		Id = "Slipstream",
+		DisplayName = "Slipstream",
+		Description = "Double movement speed for 1.5 seconds; snares still apply.",
+		Role = "Infiltrator",
+		Cooldown = 26,
+		TargetMode = "None",
+		KeyboardKey = "F",
+		GamepadKey = "ButtonY",
+		Duration = 1.5,
+		HasteMagnitude = 1,
+	} :: AbilityDefinition),
+	EMP = table.freeze({
+		Id = "EMP",
+		DisplayName = "Disruption Pulse",
+		Description = "Disarm visible traps and cleanse allies within 18 studs.",
+		Role = "Infiltrator",
+		Cooldown = 36,
+		TargetMode = "None",
+		KeyboardKey = "F",
+		GamepadKey = "ButtonY",
+		Radius = 18,
+	} :: AbilityDefinition),
+
 	-- Infiltrator gadgets (one equipped at a time through the loadout).
 	Stabilizer = table.freeze({
 		Id = "Stabilizer",
@@ -112,7 +183,7 @@ AbilityConfig.Abilities = table.freeze({
 	} :: AbilityDefinition),
 })
 
-AbilityConfig.KeeperAbilityOrder = table.freeze({ "ChronoStrike", "TimeFreeze", "TemporalTrap" })
+AbilityConfig.KeeperAbilityOrder = table.freeze({ "ChronoStrike", "TimeFreeze", "TemporalTrap", "ChronoScan" })
 AbilityConfig.GadgetIds = table.freeze({ "Stabilizer", "PhaseDash", "EchoScanner" })
 
 function AbilityConfig.get(abilityId: string): AbilityDefinition?

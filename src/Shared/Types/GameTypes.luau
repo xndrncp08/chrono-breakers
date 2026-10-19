@@ -43,6 +43,9 @@ export type PublicTerminal = {
 	state: TerminalState,
 	progress: number, -- 0..1, presentation only
 	hackerUserId: number?,
+	assistantUserId: number?,
+	challenge: any?,
+	difficulty: number?,
 }
 
 export type MatchSnapshot = {

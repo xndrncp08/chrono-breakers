@@ -13,7 +13,16 @@
 --   * Root (used to hold the Time-Keeper at match start) is not affected by immunity.
 --   * Invulnerable marks spawn protection (damage is rejected by CombatService).
 
-export type EffectKind = "Slow" | "Stun" | "Root" | "Haste" | "SlowImmunity" | "Invulnerable" | "Revealed"
+export type EffectKind =
+	"Slow"
+	| "Stun"
+	| "Root"
+	| "Haste"
+	| "SlowImmunity"
+	| "Invulnerable"
+	| "Revealed"
+	| "Cloaked"
+	| "Overclock"
 
 export type Effect = {
 	key: string,
