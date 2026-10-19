@@ -11,7 +11,7 @@ if [ ! -f "$DEFS" ]; then
 fi
 
 echo "== stylua --check"
-stylua --check src tools/run-tests.luau
+stylua --check src tools/run-tests.luau tools/verify-build.luau
 
 echo "== selene"
 selene src

@@ -135,7 +135,7 @@ local function computeAimPoint(abilityId: string): (Vector3?, boolean)
 	local probeStart =
 		Vector3.new(root.Position.X + offset.X, math.max(candidate.Y, root.Position.Y) + 4, root.Position.Z + offset.Z)
 	local ground = raycastExcludingCharacters(probeStart, Vector3.new(0, -20, 0))
-	if not ground or ground.Normal.Y < 0.7 then
+	if not ground or not ground.Instance.CanCollide or ground.Normal.Y < 0.7 then
 		return probeStart - Vector3.new(0, 4, 0), false
 	end
 	local eye = root.Position + Vector3.new(0, 1.5, 0)
@@ -181,7 +181,11 @@ function InputController.CancelTargeting()
 end
 
 local function sendAbility(abilityId: string, target: Vector3?, aim: Vector3?)
-	Net.send(RemoteNames.AbilityRequest, abilityId, target, aim)
+	local snapshot = ClientState.get("snapshot")
+	if not snapshot or not ClientState.isLiveParticipant() or ClientState.get("modal") then
+		return
+	end
+	Net.send(RemoteNames.AbilityRequest, abilityId, target, aim, snapshot.matchId)
 end
 
 function InputController.ConfirmTargeting()
@@ -304,6 +308,13 @@ function InputController.BindAbilities(abilityIds: { string })
 				table.insert(inputs, gamepad)
 			end
 			ContextActionService:BindAction(`Chrono_{abilityId}`, function(_, state, input)
+				if
+					ClientState.get("modal")
+					or UserInputService:GetFocusedTextBox()
+					or not ClientState.isLiveParticipant()
+				then
+					return Enum.ContextActionResult.Pass
+				end
 				if state ~= Enum.UserInputState.Begin then
 					return Enum.ContextActionResult.Pass
 				end
@@ -334,12 +345,18 @@ function InputController.UnbindAbilities()
 end
 
 function InputController.CancelHack()
-	Net.send(RemoteNames.ObjectiveRequest, Protocol.ObjectiveActions.Cancel)
+	local snapshot = ClientState.get("snapshot")
+	if snapshot then
+		Net.send(RemoteNames.ObjectiveRequest, Protocol.ObjectiveActions.Cancel, snapshot.matchId)
+	end
 end
 
 function InputController.SetHackCancelBound(bound: boolean)
 	if bound then
 		ContextActionService:BindAction(CANCEL_HACK_ACTION, function(_, state)
+			if ClientState.get("modal") or UserInputService:GetFocusedTextBox() then
+				return Enum.ContextActionResult.Pass
+			end
 			if state == Enum.UserInputState.Begin then
 				InputController.CancelHack()
 				return Enum.ContextActionResult.Sink
@@ -355,7 +372,31 @@ function InputController.SetFeedbackHandler(handler: (code: string) -> ())
 	onFeedback = handler
 end
 
+function InputController.Ping()
+	local snapshot = ClientState.get("snapshot")
+	if snapshot and ClientState.isLiveParticipant() and not ClientState.get("modal") then
+		Net.send(RemoteNames.PingRequest, snapshot.matchId)
+	end
+end
+
 function InputController.Init()
+	ClientState.observe("modal", function(name)
+		if name then
+			InputController.CancelTargeting()
+		end
+	end)
+	ContextActionService:BindAction("ChronoTeamPing", function(_, state)
+		if
+			state == Enum.UserInputState.Begin
+			and ClientState.isLiveParticipant()
+			and not ClientState.get("modal")
+			and not UserInputService:GetFocusedTextBox()
+		then
+			InputController.Ping()
+			return Enum.ContextActionResult.Sink
+		end
+		return Enum.ContextActionResult.Pass
+	end, false, Enum.KeyCode.G, Enum.KeyCode.ButtonR1)
 	local initial = classify(UserInputService:GetLastInputType())
 	if initial then
 		ClientState.set("inputType", initial)

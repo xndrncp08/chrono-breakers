@@ -15,6 +15,36 @@ return function(t: any)
 			end
 		end)
 
+		t.it("validates every registered authored map", function()
+			for id, map in MapLayout.Maps do
+				local errors = MapValidator.validate(map, TerminalConfig.RequiredHacks)
+				assert(#errors == 0, id .. ": " .. table.concat(errors, "; "))
+				t.expect(#map.infiltratorSpawns).toBe(4)
+			end
+		end)
+
+		t.it("keeps a route to every objective around any temporary fracture", function()
+			for id, original in MapLayout.Maps do
+				for _, site in original.anomalySites do
+					local map = TableUtil.deepCopy(original)
+					table.insert(map.boxes, {
+						name = "Fracture",
+						kind = "Wall",
+						center = site + Vector3.new(0, 6, 0),
+						size = Vector3.new(14, 12, 1),
+						color = "Danger",
+						material = "ForceField",
+						collide = true,
+					})
+					local reachable = MapValidator.buildGrid(map, true).reachableFrom(map.infiltratorSpawns[1])
+					for _, terminal in map.terminals do
+						assert(reachable(MapValidator.interactionPoint(terminal)), id .. " fractured route blocked")
+					end
+					assert(reachable(map.extractionCenter), id .. " fracture blocked extraction")
+				end
+			end
+		end)
+
 		t.it("has exactly three distinct terminals", function()
 			t.expect(#MapLayout.Vault.terminals).toBe(3)
 		end)
@@ -67,6 +97,19 @@ return function(t: any)
 			map.terminals[2].position = Vector3.new(500, 2.5, 0)
 			local errors = MapValidator.validate(map, 3)
 			t.expect(#errors).toBeGreaterThan(1)
+		end)
+
+		t.it("rejects spawns stranded behind a closed extraction gate", function()
+			local map = TableUtil.deepCopy(MapLayout.Maps.Metropolis)
+			map.infiltratorSpawns[2] = Vector3.new(-70, 3, 80)
+			local errors = MapValidator.validate(map, 3)
+			local found = false
+			for _, message in errors do
+				if string.find(message, "inaccessible before extraction", 1, true) then
+					found = true
+				end
+			end
+			t.expect(found).toBe(true)
 		end)
 
 		t.it("detects too few terminals and duplicate ids", function()

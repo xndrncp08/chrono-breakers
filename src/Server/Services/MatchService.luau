@@ -12,6 +12,7 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local Safe = require(ReplicatedStorage.Shared.Modules.Safe)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
@@ -23,6 +24,7 @@ local Cleanup = require(ReplicatedStorage.Shared.Modules.Cleanup)
 local TableUtil = require(ReplicatedStorage.Shared.Modules.TableUtil)
 
 local MatchDirector = require(script.Parent.Parent.Core.MatchDirector)
+local MapVote = require(script.Parent.Parent.Core.MapVote)
 local Validate = require(script.Parent.Parent.Core.Validate)
 
 local MatchService = {}
@@ -31,9 +33,11 @@ local deps: { [string]: any } = {}
 local director: MatchDirector.MatchDirector? = nil
 local matchCleanup: Cleanup.Cleanup? = nil
 local matchLoadouts: { [number]: string } = {} -- userId -> gadget id locked at match start
+local matchClasses: { [number]: string } = {}
 local spawnIndex: { [number]: number } = {}
 local lastSnapshotAt = 0
 local studioSolo = false
+local mapVotes: { [number]: string } = {}
 
 local IN_MATCH = { Intro = true, Active = true, Extraction = true }
 
@@ -45,6 +49,7 @@ local REASON_TEXT: { [string]: string } = {
 	Cancelled = "Hack cancelled.",
 	Disconnected = "Hack interrupted.",
 	Eliminated = "Hack interrupted — you were eliminated.",
+	ChallengeFailed = "Trace detected — progress reduced. The Keeper can see you!",
 }
 
 local RESULT_TEXT: { [string]: string } = {
@@ -159,6 +164,15 @@ function MatchService.GetMatchGadget(player: Player): string?
 	return matchLoadouts[player.UserId]
 end
 
+function MatchService.GetMatchClass(player: Player): string?
+	return matchClasses[player.UserId]
+end
+
+function MatchService.GetClassAbility(player: Player): string?
+	local class = ClassConfig.get(matchClasses[player.UserId])
+	return if class then class.AbilityId else nil
+end
+
 function MatchService.IsInMatch(player: Player): boolean
 	local d = getDirector()
 	local p = d:getParticipant(player.UserId)
@@ -185,9 +199,26 @@ end
 -- Broadcasting
 ---------------------------------------------------------------------------
 
+function MatchService.BuildSnapshot(): any
+	local snapshot: any = getDirector():snapshot()
+	snapshot.anomaly = deps.AnomalyService.Snapshot()
+	snapshot.mapId = deps.WorldService.GetMapId()
+	snapshot.mapName = deps.WorldService.GetMap().name
+	for _, participant in snapshot.participants do
+		participant.classId = matchClasses[participant.userId]
+	end
+	snapshot.mapVotes = {}
+	for userId, id in mapVotes do
+		if getDirector().queue:contains(userId) then
+			snapshot.mapVotes[tostring(userId)] = id
+		end
+	end
+	return snapshot
+end
+
 function MatchService.BroadcastSnapshot()
 	lastSnapshotAt = os.clock()
-	deps.NetworkService.FireAll(RemoteNames.MatchState, getDirector():snapshot())
+	deps.NetworkService.FireAll(RemoteNames.MatchState, MatchService.BuildSnapshot())
 end
 
 local function queueStateFor(player: Player): { [string]: any }
@@ -227,6 +258,10 @@ local function sendRoleAssignment(player: Player)
 		local gadget = matchLoadouts[player.UserId]
 		if gadget then
 			abilities = { gadget }
+			local skill = MatchService.GetClassAbility(player)
+			if skill then
+				table.insert(abilities, skill)
+			end
 		end
 	end
 	deps.NetworkService.FireClient(RemoteNames.RoleAssigned, player, {
@@ -235,6 +270,8 @@ local function sendRoleAssignment(player: Player)
 		displayName = if role then role.DisplayName else p.role,
 		tagline = if role then role.Tagline else "",
 		description = if role then role.Description else "",
+		classId = matchClasses[player.UserId],
+		mapName = deps.WorldService.GetMap().name,
 		abilities = abilities,
 		keeperName = displayName(session.keeperUserId),
 		hasKeeper = session.keeperUserId ~= nil,
@@ -256,6 +293,7 @@ local function onMatchStarted(payload: any)
 	end
 	matchCleanup = Cleanup.new()
 	table.clear(matchLoadouts)
+	table.clear(matchClasses)
 	table.clear(spawnIndex)
 	local infiltratorIndex = 0
 	for _, userId in payload.order do
@@ -266,6 +304,7 @@ local function onMatchStarted(payload: any)
 				infiltratorIndex += 1
 				spawnIndex[userId] = infiltratorIndex
 				matchLoadouts[userId] = deps.InventoryService.GetEquipped(player, "Gadget") or "Stabilizer"
+				matchClasses[userId] = deps.InventoryService.GetEquipped(player, "Class") or "Ghost"
 			end
 			deps.StatusEffectService.ClearAll(player)
 			deps.StatusEffectService.Apply(player, {
@@ -284,12 +323,14 @@ local function onMatchStarted(payload: any)
 end
 
 local function onMatchActive(payload: any)
+	deps.AnomalyService.BeginMatch(payload.matchId)
 	local d = getDirector()
 	local session = d.session
 	if not session or session.matchId ~= payload.matchId then
 		return
 	end
 	for _, player in MatchService.GetParticipants() do
+		deps.SecurityService.ResetMovement(player)
 		deps.StatusEffectService.Remove(player, "intro")
 		local role = d:getRole(player.UserId)
 		if role == "TimeKeeper" then
@@ -399,6 +440,7 @@ local function onTerminalCompleted(payload: any)
 end
 
 local function onExtractionOpened(payload: any)
+	deps.AnomalyService.EndMatch()
 	deps.WorldService.SetExtractionOpen(true)
 	deps.NetworkService.Notify(
 		participantsAndAll(),
@@ -419,6 +461,7 @@ local function onExtractionChannel(payload: any)
 	if player then
 		deps.NetworkService.FireClient(RemoteNames.StatusUpdate, player, {
 			kind = "Extraction",
+			matchId = payload.matchId,
 			progress = payload.progress,
 		})
 	end
@@ -475,6 +518,7 @@ local function onParticipantLeft(payload: any)
 end
 
 local function onMatchResolved(result: MatchDirector.MatchResult)
+	deps.AnomalyService.EndMatch()
 	deps.AbilityService.EndMatch(result.matchId)
 	deps.CombatService.EndMatch()
 	deps.WorldService.SetExtractionOpen(false)
@@ -526,10 +570,23 @@ local function onMatchCleanup(_payload: any)
 		matchCleanup = nil
 	end
 	table.clear(matchLoadouts)
+	table.clear(matchClasses)
 	table.clear(spawnIndex)
 	deps.ObjectiveService.ResetVisuals()
 	deps.WorldService.SetExtractionOpen(false)
 	MatchService.BroadcastQueue()
+end
+
+local function onHackRisk(payload: any)
+	local keeper = MatchService.GetKeeper()
+	local hacker = playerById(payload.userId)
+	if keeper and hacker then
+		deps.NetworkService.FireClient(
+			RemoteNames.Effect,
+			keeper,
+			{ kind = "Tracking", userId = hacker.UserId, duration = 2.5 }
+		)
+	end
 end
 
 local HANDLERS: { [string]: (any) -> () } = {
@@ -538,6 +595,7 @@ local HANDLERS: { [string]: (any) -> () } = {
 	TerminalChanged = onTerminalChanged,
 	TerminalProgress = onTerminalProgress,
 	HackStarted = onHackStarted,
+	HackRisk = onHackRisk,
 	HackInterrupted = onHackInterrupted,
 	TerminalCompleted = onTerminalCompleted,
 	ExtractionOpened = onExtractionOpened,
@@ -582,7 +640,14 @@ end
 ---------------------------------------------------------------------------
 
 function MatchService.RequestHack(player: Player, terminalId: string): (boolean, string)
-	return getDirector():requestHackStart(player.UserId, terminalId, now())
+	if not deps.SecurityService.ValidatePosition(player) then
+		return false, Protocol.Codes.OutOfRange
+	end
+	local ok, code = getDirector():requestHackStart(player.UserId, terminalId, now())
+	if ok then
+		deps.StatusEffectService.Remove(player, "veil")
+	end
+	return ok, code
 end
 
 function MatchService.CancelHack(player: Player, reason: string): boolean
@@ -590,6 +655,7 @@ function MatchService.CancelHack(player: Player, reason: string): boolean
 end
 
 function MatchService.NotifyDamage(player: Player)
+	deps.StatusEffectService.Remove(player, "veil")
 	getDirector():notifyDamage(player.UserId, now())
 end
 
@@ -613,6 +679,11 @@ local function handleQueueRequest(player: Player, action: any, ...: any)
 	if action == Protocol.QueueActions.Join then
 		if MatchService.IsInMatch(player) then
 			deps.NetworkService.Reject(player, "Queue", Protocol.Codes.InMatch)
+			return
+		end
+		local state = deps.PlayerDataService.GetState(player)
+		if state ~= "Loaded" and state ~= "Unsaved" then
+			deps.NetworkService.Reject(player, "Queue", Protocol.Codes.ProfileUnavailable)
 			return
 		end
 		if not isAlive(player) then
@@ -642,7 +713,7 @@ local function handleClientReady(player: Player, ...: any)
 		deps.SecurityService.Report(player, "InvalidPayload", "ClientReady")
 		return
 	end
-	deps.NetworkService.FireClient(RemoteNames.MatchState, player, getDirector():snapshot())
+	deps.NetworkService.FireClient(RemoteNames.MatchState, player, MatchService.BuildSnapshot())
 	deps.NetworkService.FireClient(RemoteNames.QueueState, player, queueStateFor(player))
 	deps.PlayerDataService.SendSnapshot(player)
 	if MatchService.IsInMatch(player) then
@@ -679,8 +750,18 @@ function MatchService.Init(injected: { [string]: any })
 			retainProgressOnInterrupt = TerminalConfig.RetainProgressOnInterrupt,
 			progressBroadcastInterval = TerminalConfig.ProgressBroadcastInterval,
 			allowKeeperless = studioSolo,
+			cooperativeHacking = TerminalConfig.CooperativeHacking,
+			interactiveChallenges = TerminalConfig.InteractiveChallenges,
+			assistantSpeedBonus = TerminalConfig.AssistantSpeedBonus,
 		},
 		terminals = deps.WorldService.GetTerminalSpecs(),
+		prepareMatch = function(order: { number })
+			local id = MapVote.select(mapVotes, order, getDirector().matchesStarted - 1)
+			deps.WorldService.SelectMap(id)
+			deps.ObjectiveService.BindTerminals()
+			table.clear(mapVotes)
+			return deps.WorldService.GetTerminalSpecs()
+		end,
 		now = now(),
 		newMatchId = function()
 			return game:GetService("HttpService"):GenerateGUID(false)
@@ -691,7 +772,11 @@ function MatchService.Init(injected: { [string]: any })
 		world = {
 			isEligibleForMatch = function(userId: number)
 				local player = playerById(userId)
-				return player ~= nil and player.Parent == Players
+				local state = if player then deps.PlayerDataService.GetState(player) else nil
+				return player ~= nil
+					and player.Parent == Players
+					and isAlive(player)
+					and (state == "Loaded" or state == "Unsaved")
 			end,
 			isAlive = function(userId: number)
 				local player = playerById(userId)
@@ -705,7 +790,15 @@ function MatchService.Init(injected: { [string]: any })
 				local player = playerById(userId)
 				local terminal = deps.WorldService.GetTerminal(terminalId)
 				local root = if player then getRoot(player) else nil
-				if not root or not terminal then
+				if not root or not terminal or not player or not deps.SecurityService.ValidatePosition(player) then
+					return nil
+				end
+				if
+					not deps.WorldService.HasLineOfSight(
+						root.Position,
+						terminal.position + terminal.console.CFrame.LookVector * 1.5
+					)
+				then
 					return nil
 				end
 				return (root.Position - terminal.position).Magnitude
@@ -713,7 +806,16 @@ function MatchService.Init(injected: { [string]: any })
 			isInExtractionZone = function(userId: number)
 				local player = playerById(userId)
 				local root = if player then getRoot(player) else nil
-				return root ~= nil and deps.WorldService.IsInsideExtraction(root.Position)
+				return root ~= nil
+					and player ~= nil
+					and deps.SecurityService.ValidatePosition(player)
+					and deps.WorldService.IsInsideExtraction(root.Position)
+			end,
+			hackSpeed = function(userId: number)
+				local player = playerById(userId)
+				local class = if player then ClassConfig.get(matchClasses[userId]) else nil
+				local speed = if class then class.HackSpeed else 1
+				return speed * (if player and deps.StatusEffectService.Has(player, "Overclock") then 1.5 else 1)
 			end,
 			getName = function(userId: number)
 				local player = playerById(userId)
@@ -736,10 +838,80 @@ function MatchService.Start()
 
 	deps.NetworkService.OnRequest(RemoteNames.QueueRequest, handleQueueRequest)
 	deps.NetworkService.OnRequest(RemoteNames.ClientReady, handleClientReady)
+	deps.NetworkService.OnRequest(RemoteNames.PingRequest, function(player: Player, matchId: any, ...: any)
+		if select("#", ...) > 0 or not Validate.isShortString(matchId, 64) then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.InvalidPayload)
+			return
+		end
+		if not MatchService.IsCurrentMatch(matchId) then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.StaleRequest)
+			return
+		end
+		local phase = MatchService.GetPhase()
+		if
+			(phase ~= "Active" and phase ~= "Extraction")
+			or not MatchService.IsActiveParticipant(player)
+			or MatchService.GetRole(player) ~= "Infiltrator"
+			or not isAlive(player)
+		then
+			deps.NetworkService.Reject(player, "Ping", Protocol.Codes.WrongRole)
+			return
+		end
+		if not deps.SecurityService.ValidatePosition(player) then
+			return
+		end
+		local root = getRoot(player) :: BasePart
+		local humanoid = (player.Character :: Model):FindFirstChildOfClass("Humanoid") :: Humanoid
+		local label = if humanoid.Health < humanoid.MaxHealth / 2
+			then "Needs healing"
+			elseif d:getHackingTerminal(player.UserId) then "Assist this hack"
+			else "Rally here"
+		local nearest = ""
+		for _, terminal in deps.WorldService.GetTerminals() do
+			if (root.Position - terminal.position).Magnitude <= 18 then
+				nearest = ` / {terminal.name}`
+				break
+			end
+		end
+		local recipients = {}
+		for _, teammate in MatchService.GetParticipants() do
+			if MatchService.GetRole(teammate) == "Infiltrator" then
+				table.insert(recipients, teammate)
+			end
+		end
+		deps.NetworkService.FireList(RemoteNames.Effect, recipients, {
+			kind = "TeamPing",
+			matchId = matchId,
+			position = root.Position,
+			userId = player.UserId,
+			label = `{displayName(player.UserId)}: {label}{nearest}`,
+			duration = 6,
+		})
+	end)
+	deps.NetworkService.OnRequest(RemoteNames.MapVoteRequest, function(player: Player, mapId: any, ...: any)
+		if select("#", ...) > 0 or not Validate.isShortString(mapId, 32) then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.InvalidPayload)
+			return
+		end
+		if
+			not d.queue:contains(player.UserId)
+			or (d:getPhase() ~= "WaitingForPlayers" and d:getPhase() ~= "Intermission")
+		then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.WrongPhase)
+			return
+		end
+		if not MapVote.cast(mapVotes, player.UserId, mapId) then
+			deps.NetworkService.Reject(player, "MapVote", Protocol.Codes.UnknownTarget)
+			return
+		end
+		MatchService.BroadcastSnapshot()
+	end)
 
 	Players.PlayerRemoving:Connect(function(player)
 		d:playerRemoving(player.UserId, now())
 		matchLoadouts[player.UserId] = nil
+		matchClasses[player.UserId] = nil
+		mapVotes[player.UserId] = nil
 		MatchService.BroadcastQueue()
 		MatchService.BroadcastSnapshot()
 	end)
@@ -752,6 +924,7 @@ function MatchService.Start()
 			d.config.allowKeeperless = studioSolo and #Players:GetPlayers() == 1
 			local ok, err = Safe.call(function()
 				d:tick(now())
+				deps.AnomalyService.Tick(now())
 			end)
 			if not ok then
 				warn(`[MatchService] director tick failed: {err}`)

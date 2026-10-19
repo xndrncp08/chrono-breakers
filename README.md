@@ -7,16 +7,15 @@ service/controller architecture with a pure, offline-tested gameplay core.
 
 > Working title — configurable in `src/Shared/Config/GameConfig.luau`.
 
-## Status (honest summary)
+## Status
 
-| Area | State |
-| --- | --- |
-| Match flow, roles, terminals, extraction, results | Implemented; Lune tests + **verified in Roblox Studio** (solo 110/110, 2-player 72/72, 3-player 26/26 E2E) |
-| Time-Keeper kit + Infiltrator gadgets | Implemented; exercised through real remotes in a 2-player Studio session |
-| Persistence, shop/loadout, rewards | Implemented; shop/rewards verified in Studio with the in-memory store. **Real DataStores not yet verified** (needs a published test experience) |
-| Client UI (lobby, HUD, reveal, results, loadout, settings) | Implemented; screen state and layout lint verified in Studio, two overlap defects fixed. **Touch, gamepad and a player-perspective map review not yet done** |
-| Release readiness | [docs/RELEASE_READINESS.md](docs/RELEASE_READINESS.md): controlled test release yes, broad release not yet |
-| Studio validation details | [docs/TEST_PLAN.md](docs/TEST_PLAN.md), raw logs in [docs/evidence/](docs/evidence/) |
+Temporal expansion implemented: four maps/voting, five free classes, co-op and interactive hacking,
+eight anomalies, Keeper tracking, XP/mastery/calendar contracts/cosmetics, team pings and refreshed
+presentation. The existing authoritative architecture and runtime dependency policy are preserved.
+
+Automated verification and limitations: [EXPANSION_RELEASE](docs/EXPANSION_RELEASE.md).
+**Release sign-off is pending** new Studio/five-client, real DataStore, device, visual and profiling
+checks. Historical Studio evidence verifies the earlier build only. Nothing has been published.
 
 ## Requirements
 
@@ -47,6 +46,7 @@ stylua src tools/run-tests.luau
 
 # Build the production place file
 rojo build default.project.json -o build/game.rbxl
+lune run tools/verify-build.luau
 
 # Live-sync into an open Studio place (requires the Rojo Studio plugin)
 rojo serve default.project.json
@@ -75,6 +75,10 @@ rojo serve default.project.json
 | Time-Freeze Zone (Keeper) | Q to aim, click to place, RMB cancel | L1, press again/R2, B cancel | button → Confirm |
 | Temporal Trap (Keeper) | F (aim/confirm like above) | Y | button → Confirm |
 | Gadget (Infiltrator) | Q | L1 | ability button |
+| Class skill (Infiltrator) | F | Y | class button |
+| Chrono Pulse (Keeper) | R | L2 | pulse button |
+| Team ping | G | R1 | Team ping button |
+| Optional hack challenge | 1 / 2 / 3 | D-pad left / up / right | answer buttons |
 
 ## Repository layout
 

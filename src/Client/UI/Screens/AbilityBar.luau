@@ -27,6 +27,7 @@ type Slot = {
 	count: TextLabel,
 }
 
+local Workspace = game:GetService("Workspace")
 local SLOT_SIZE = 92
 
 function AbilityBar.new(parent: Instance, deps: { [string]: any })
@@ -39,8 +40,14 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 		AutomaticSize = Enum.AutomaticSize.X,
 		Parent = parent,
 	})
-	local layout = Style.list(Enum.FillDirection.Horizontal, Theme.Spacing.S, Enum.HorizontalAlignment.Center)
-	layout.Parent = bar
+	local layout = Create("UIGridLayout", {
+		CellSize = UDim2.fromOffset(SLOT_SIZE, SLOT_SIZE),
+		CellPadding = UDim2.fromOffset(8, 8),
+		FillDirectionMaxCells = 4,
+		HorizontalAlignment = Enum.HorizontalAlignment.Center,
+		SortOrder = Enum.SortOrder.LayoutOrder,
+		Parent = bar,
+	}) :: UIGridLayout
 
 	-- Touch confirm/cancel for ground targeting.
 	local targetingRow = Create("Frame", {
@@ -185,19 +192,19 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 
 	local function applyLayout()
 		local touch = ClientState.get("inputType") == "Touch"
-		if touch then
-			layout.FillDirection = Enum.FillDirection.Vertical
-			bar.AnchorPoint = Vector2.new(1, 1)
-			bar.Position = UDim2.new(1, -Theme.Spacing.L, 1, -190)
-			bar.AutomaticSize = Enum.AutomaticSize.Y
-			bar.Size = UDim2.fromOffset(76, 0)
-		else
-			layout.FillDirection = Enum.FillDirection.Horizontal
-			bar.AnchorPoint = Vector2.new(0.5, 1)
-			bar.Position = UDim2.new(0.5, 0, 1, -Theme.Spacing.L)
-			bar.AutomaticSize = Enum.AutomaticSize.X
-			bar.Size = UDim2.fromOffset(0, SLOT_SIZE)
-		end
+		local camera = Workspace.CurrentCamera
+		local portrait = camera ~= nil and camera.ViewportSize.X < 700
+		local cell = if touch then 76 else SLOT_SIZE
+		local columns = if touch then 2 else math.max(1, #slots)
+		local rows = math.max(1, math.ceil(#slots / columns))
+		layout.CellSize = UDim2.fromOffset(cell, cell)
+		layout.FillDirectionMaxCells = columns
+		bar.AutomaticSize = Enum.AutomaticSize.None
+		bar.Size = UDim2.fromOffset(math.min(columns, math.max(1, #slots)) * (cell + 8) - 8, rows * (cell + 8) - 8)
+		bar.AnchorPoint = if touch and not portrait then Vector2.new(1, 1) else Vector2.new(0.5, 1)
+		bar.Position = if touch and not portrait
+			then UDim2.new(1, -Theme.Spacing.L, 1, -190)
+			else UDim2.new(0.5, 0, 1, -Theme.Spacing.L)
 		local slotSize = if touch then 76 else SLOT_SIZE
 		for _, slot in slots do
 			slot.button.Size = UDim2.fromOffset(slotSize, slotSize)
@@ -301,6 +308,10 @@ function AbilityBar.new(parent: Instance, deps: { [string]: any })
 		end
 	end)
 
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(applyLayout)
+	end
 	local self = {}
 	function self.Reset()
 		currentKey = ""

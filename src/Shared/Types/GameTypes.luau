@@ -31,6 +31,7 @@ export type ResolutionReason =
 
 -- Public per-participant info broadcast to all clients.
 export type PublicParticipant = {
+	classId: string?,
 	userId: number,
 	name: string,
 	role: Role,
@@ -43,9 +44,25 @@ export type PublicTerminal = {
 	state: TerminalState,
 	progress: number, -- 0..1, presentation only
 	hackerUserId: number?,
+	assistantUserId: number?,
+	challenge: any?,
+	difficulty: number?,
 }
 
 export type MatchSnapshot = {
+	mapId: string?,
+	mapName: string?,
+	mapVotes: { [string]: string }?,
+	anomaly: {
+		id: string,
+		kind: string,
+		position: Vector3,
+		destination: Vector3,
+		radius: number,
+		activatesAt: number,
+		endsAt: number,
+		state: string,
+	}?,
 	version: number,
 	matchId: string?,
 	phase: Phase,
@@ -72,6 +89,8 @@ export type MatchResultPayload = {
 	rewards: { RewardLine },
 	rewardTotal: number,
 	rewardsSaved: boolean,
+	xp: number?,
+	progressionRewards: { string }?,
 	stats: { hacks: number, eliminations: number, extracted: boolean },
 	participants: { PublicParticipant },
 }
@@ -84,6 +103,7 @@ export type ProfileSnapshot = {
 	equipped: { [string]: string },
 	stats: { [string]: number },
 	settings: { [string]: any },
+	progression: any?,
 }
 
 return {}

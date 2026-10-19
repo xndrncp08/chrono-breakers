@@ -9,9 +9,11 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
+local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 local GameTypes = require(ReplicatedStorage.Shared.Types.GameTypes)
 local Signal = require(ReplicatedStorage.Shared.Modules.Signal)
 
+local HackChallenge = require(script.Parent.HackChallenge)
 local ExtractionModel = require(script.Parent.ExtractionModel)
 local MatchStateMachine = require(script.Parent.MatchStateMachine)
 local ObjectiveTracker = require(script.Parent.ObjectiveTracker)
@@ -32,6 +34,7 @@ export type WorldQuery = {
 	distanceToTerminal: (userId: number, terminalId: string) -> number?,
 	isInExtractionZone: (userId: number) -> boolean,
 	getName: (userId: number) -> string,
+	hackSpeed: ((userId: number) -> number)?,
 }
 
 export type DirectorConfig = {
@@ -51,6 +54,9 @@ export type DirectorConfig = {
 	interruptLockout: number,
 	retainProgressOnInterrupt: boolean,
 	progressBroadcastInterval: number,
+	cooperativeHacking: boolean?,
+	interactiveChallenges: boolean?,
+	assistantSpeedBonus: number?,
 	allowKeeperless: boolean, -- Studio solo testing only
 }
 
@@ -66,9 +72,11 @@ export type Participant = {
 	eliminations: number,
 	extracted: boolean,
 	lastChannelBroadcast: number,
+	assists: number,
 }
 
 export type ResultParticipant = {
+	assists: number?,
 	userId: number,
 	name: string,
 	role: Role,
@@ -102,6 +110,9 @@ export type Session = {
 	objectives: ObjectiveTracker.ObjectiveTracker,
 	extraction: ExtractionModel.ExtractionModel,
 	result: MatchResult?,
+	challenges: { [string]: HackChallenge.Challenge },
+	challengeSequence: number,
+	modes: { [string]: string },
 }
 
 export type DirectorEvent = string
@@ -125,6 +136,15 @@ export type MatchDirector = {
 	isActiveParticipant: (self: MatchDirector, userId: number) -> boolean,
 	getRole: (self: MatchDirector, userId: number) -> Role?,
 	requestHackStart: (self: MatchDirector, userId: number, terminalId: string, now: number) -> (boolean, string),
+	respondChallenge: (
+		self: MatchDirector,
+		userId: number,
+		matchId: string,
+		terminalId: string,
+		nonce: number,
+		answer: number,
+		now: number
+	) -> (boolean, string),
 	cancelHack: (self: MatchDirector, userId: number, reason: string, now: number) -> boolean,
 	getHackingTerminal: (self: MatchDirector, userId: number) -> string?,
 	notifyDamage: (self: MatchDirector, userId: number, now: number) -> (),
@@ -143,6 +163,7 @@ export type Params = {
 	world: WorldQuery,
 	queue: QueueModel.QueueModel?,
 	terminals: { TerminalSpec },
+	prepareMatch: (({ number }) -> { TerminalSpec })?,
 	newMatchId: () -> string,
 	randomIndex: (n: number) -> number,
 	now: number,
@@ -242,6 +263,11 @@ function MatchDirector.new(params: Params): MatchDirector
 			state = terminal.state,
 			progress = math.floor(terminal.progress * 1000 + 0.5) / 1000,
 			hackerUserId = terminal.hackerUserId,
+			assistantUserId = terminal.assistantUserId,
+			challenge = if session.challenges[terminalId] and not session.challenges[terminalId].used
+				then HackChallenge.public(session.challenges[terminalId])
+				else nil,
+			difficulty = session.objectives:completedCount() + 1,
 		}
 	end
 
@@ -323,6 +349,7 @@ function MatchDirector.new(params: Params): MatchDirector
 				hacks = p.hacks,
 				eliminations = p.eliminations,
 				extracted = p.extracted,
+				assists = p.assists,
 			}
 		end
 		local result: MatchResult = {
@@ -423,7 +450,9 @@ function MatchDirector.new(params: Params): MatchDirector
 	local function findHackedTerminal(session: Session, userId: number): TerminalModel.TerminalModel?
 		for _, id in session.terminalOrder do
 			local terminal = session.terminals[id]
-			if terminal.state == "Hacking" and terminal.hackerUserId == userId then
+			if
+				terminal.state == "Hacking" and (terminal.hackerUserId == userId or terminal.assistantUserId == userId)
+			then
 				return terminal
 			end
 		end
@@ -446,6 +475,7 @@ function MatchDirector.new(params: Params): MatchDirector
 		now: number
 	)
 		local hacker = terminal.hackerUserId
+		session.challenges[terminal.id] = nil
 		if terminal:interrupt(reason, now, config.interruptLockout, config.retainProgressOnInterrupt) then
 			emit("HackInterrupted", {
 				matchId = session.matchId,
@@ -458,8 +488,12 @@ function MatchDirector.new(params: Params): MatchDirector
 	end
 
 	-- Returns nil when the hacker may continue, otherwise the interruption reason.
-	local function hackerInvalidReason(session: Session, terminal: TerminalModel.TerminalModel): string?
-		local userId = terminal.hackerUserId
+	local function hackerInvalidReason(
+		session: Session,
+		terminal: TerminalModel.TerminalModel,
+		candidate: number?
+	): string?
+		local userId = candidate
 		if userId == nil then
 			return "NoHacker"
 		end
@@ -509,6 +543,19 @@ function MatchDirector.new(params: Params): MatchDirector
 		if current ~= nil then
 			return false, "AlreadyHacking"
 		end
+		if config.cooperativeHacking and terminal.state == "Hacking" and terminal.assistantUserId == nil then
+			local distance = world.distanceToTerminal(userId, terminalId)
+			if distance == nil or distance ~= distance or distance > config.maxInteractionDistance then
+				return false, "OutOfRange"
+			end
+			terminal.assistantUserId = userId
+			emit(
+				"HackStarted",
+				{ matchId = session.matchId, terminalId = terminalId, userId = userId, assisting = true }
+			)
+			emitTerminal(session, terminalId, "Assisting")
+			return true, "Ok"
+		end
 		local canStart, code = terminal:canStart(userId)
 		if not canStart then
 			return false, code
@@ -520,6 +567,16 @@ function MatchDirector.new(params: Params): MatchDirector
 		local started, startCode = terminal:start(userId, now)
 		if not started then
 			return false, startCode
+		end
+		if config.interactiveChallenges then
+			session.challengeSequence += 1
+			session.challenges[terminalId] = HackChallenge.new(
+				session.modes[terminalId],
+				session.challengeSequence,
+				now,
+				params.randomIndex(3),
+				session.objectives:completedCount() + 1
+			)
 		end
 		emit("HackStarted", { matchId = session.matchId, terminalId = terminalId, userId = userId })
 		emitTerminal(session, terminalId, nil)
@@ -535,8 +592,58 @@ function MatchDirector.new(params: Params): MatchDirector
 		if not terminal then
 			return false
 		end
-		interruptTerminal(session, terminal, reason, now)
+		if terminal.assistantUserId == userId then
+			terminal.assistantUserId = nil
+			emitTerminal(session, terminal.id, "AssistantLeft")
+		else
+			interruptTerminal(session, terminal, reason, now)
+		end
 		return true
+	end
+
+	function self:respondChallenge(
+		userId: number,
+		matchId: string,
+		terminalId: string,
+		nonce: number,
+		answer: number,
+		now: number
+	): (boolean, string)
+		local session = self.session
+		if
+			not session
+			or session.matchId ~= matchId
+			or self.machine.phase ~= "Active"
+			or (session.deadline and now >= session.deadline)
+		then
+			return false, "StaleRequest"
+		end
+		local terminal = session.terminals[terminalId]
+		if not terminal or terminal.state ~= "Hacking" or terminal.hackerUserId ~= userId then
+			return false, "WrongRole"
+		end
+		local reason = hackerInvalidReason(session, terminal, userId)
+		if reason then
+			return false, reason
+		end
+		local challenge = session.challenges[terminalId]
+		if not challenge then
+			return false, "StaleRequest"
+		end
+		local ok, code = HackChallenge.respond(challenge, nonce, answer, now)
+		if ok then
+			terminal.progress = math.min(0.99, terminal.progress + TerminalConfig.ChallengeBonus)
+			-- The next challenge is issued by the tick after a fixed recovery interval.
+			challenge.expiresAt = now + TerminalConfig.ChallengeInterval
+			challenge.used = true
+			session.challenges[terminalId] = challenge
+			emitTerminal(session, terminalId, "ChallengePassed")
+		elseif code == "ChallengeFailed" then
+			terminal.progress = math.max(0, terminal.progress - TerminalConfig.ChallengePenalty)
+			interruptTerminal(session, terminal, "ChallengeFailed", now)
+			emit("HackRisk", { matchId = matchId, userId = userId })
+		end
+		return ok, code
 	end
 
 	function self:notifyDamage(userId: number, now: number)
@@ -570,18 +677,46 @@ function MatchDirector.new(params: Params): MatchDirector
 				emitTerminal(session, id, nil)
 			end
 			if terminal.state == "Hacking" then
-				local reason = hackerInvalidReason(session, terminal)
+				local reason = hackerInvalidReason(session, terminal, terminal.hackerUserId)
 				if reason then
 					interruptTerminal(session, terminal, reason, now)
 				else
 					local hacker = terminal.hackerUserId :: number
-					if terminal:advance(now, config.hackDuration) then
+					local assistant = terminal.assistantUserId
+					if assistant and hackerInvalidReason(session, terminal, assistant) then
+						terminal.assistantUserId = nil
+						assistant = nil
+						emitTerminal(session, id, "AssistantLeft")
+					end
+					if config.interactiveChallenges then
+						local challenge = session.challenges[id]
+						if not challenge or now >= challenge.expiresAt then
+							session.challengeSequence += 1
+							session.challenges[id] = HackChallenge.new(
+								session.modes[id],
+								session.challengeSequence,
+								now,
+								params.randomIndex(3),
+								session.objectives:completedCount() + 1
+							)
+						end
+					end
+					local speed = if world.hackSpeed then world.hackSpeed(hacker) else 1
+					if assistant then
+						speed += config.assistantSpeedBonus or 0.35
+					end
+					speed /= 1 + session.objectives:completedCount() * (if config.interactiveChallenges then 0.1 else 0)
+					if terminal:advance(now, config.hackDuration / math.clamp(speed, 0.5, 2)) then
 						local accepted, thresholdReached = session.objectives:markComplete(id)
 						if accepted then
 							local p = session.participants[hacker]
 							if p then
 								p.hacks += 1
 							end
+							if assistant then
+								session.participants[assistant].assists += 1
+							end
+							session.challenges[id] = nil
 							emit("TerminalCompleted", {
 								matchId = session.matchId,
 								terminalId = id,
@@ -652,7 +787,7 @@ function MatchDirector.new(params: Params): MatchDirector
 		end
 		local terminal = findHackedTerminal(session, userId)
 		if terminal then
-			interruptTerminal(session, terminal, "Eliminated", now)
+			self:cancelHack(userId, "Eliminated", now)
 		end
 		p.status = "Eliminated"
 		session.extraction:resetChannel(userId)
@@ -685,7 +820,7 @@ function MatchDirector.new(params: Params): MatchDirector
 		end
 		local terminal = findHackedTerminal(session, userId)
 		if terminal then
-			interruptTerminal(session, terminal, "Disconnected", now)
+			self:cancelHack(userId, "Disconnected", now)
 		end
 		if p.status == "Active" then
 			p.status = "Disconnected"
@@ -704,7 +839,8 @@ function MatchDirector.new(params: Params): MatchDirector
 		local objectives = ObjectiveTracker.new(config.requiredHacks)
 		local terminals: { [string]: TerminalModel.TerminalModel } = {}
 		local terminalOrder: { string } = {}
-		for _, spec in params.terminals do
+		local specs: { TerminalSpec } = if params.prepareMatch then params.prepareMatch(order) else params.terminals
+		for _, spec in specs do
 			terminals[spec.id] = TerminalModel.new(spec.id, spec.name)
 			table.insert(terminalOrder, spec.id)
 			objectives:register(spec.id)
@@ -726,6 +862,7 @@ function MatchDirector.new(params: Params): MatchDirector
 				eliminations = 0,
 				extracted = false,
 				lastChannelBroadcast = -math.huge,
+				assists = 0,
 			}
 		end
 		return {
@@ -741,6 +878,17 @@ function MatchDirector.new(params: Params): MatchDirector
 			objectives = objectives,
 			extraction = ExtractionModel.new(),
 			result = nil,
+			challenges = {},
+			challengeSequence = 0,
+			modes = (function(): { [string]: string }
+				local modes = {}
+				local offset = params.randomIndex(3) - 1
+				local choices = { "Sequence", "Cipher", "Timing" }
+				for i, id in terminalOrder do
+					modes[id] = choices[(i - 1 + offset) % 3 + 1]
+				end
+				return modes
+			end)(),
 		}
 	end
 
@@ -756,8 +904,16 @@ function MatchDirector.new(params: Params): MatchDirector
 		end
 		local keeperless = config.allowKeeperless and #taken == 1
 		local roles = RoleSelector.assign(taken, self.roleHistory, params.randomIndex, keeperless)
+		local ok, created = pcall(createSession, roles, taken, now)
+		if not ok then
+			self.matchesStarted -= 1
+			self.queue:restore(taken)
+			setPhase("WaitingForPlayers", now, nil)
+			warn(`[MatchDirector] match setup failed: {created}`)
+			return
+		end
 		RoleSelector.recordMatch(self.roleHistory, roles)
-		local session = createSession(roles, taken, now)
+		local session = created :: Session
 		self.session = session
 		setPhase("Intro", now, now + config.introDuration)
 		emit("MatchStarted", {

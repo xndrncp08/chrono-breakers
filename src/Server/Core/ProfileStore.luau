@@ -39,9 +39,15 @@ export type SaveStatus = "Saved" | "LockLost" | "Error"
 
 export type ProfileStore = {
 	keyFor: (self: ProfileStore, userId: number) -> string,
-	load: (self: ProfileStore, userId: number) -> (LoadStatus, ProfileSchema.Profile?),
-	save: (self: ProfileStore, userId: number, profile: ProfileSchema.Profile, release: boolean) -> SaveStatus,
-	release: (self: ProfileStore, userId: number) -> SaveStatus,
+	load: (self: ProfileStore, userId: number) -> (LoadStatus, ProfileSchema.Profile?, string?),
+	save: (
+		self: ProfileStore,
+		userId: number,
+		profile: ProfileSchema.Profile,
+		release: boolean,
+		token: string?
+	) -> SaveStatus,
+	release: (self: ProfileStore, userId: number, token: string?) -> SaveStatus,
 }
 
 local ProfileStore = {}
@@ -56,6 +62,8 @@ function ProfileStore.new(options: Options): ProfileStore
 	local log = options.log or function(_message: string) end
 
 	local self = {} :: any
+	local serial = 0
+	local tokens: { [number]: string } = {}
 
 	local function backoff(attempt: number)
 		options.sleep(math.min(maxBackoff, baseBackoff * 2 ^ (attempt - 1)))
@@ -65,7 +73,9 @@ function ProfileStore.new(options: Options): ProfileStore
 		return prefix .. tostring(userId)
 	end
 
-	function self:load(userId: number): (LoadStatus, ProfileSchema.Profile?)
+	function self:load(userId: number): (LoadStatus, ProfileSchema.Profile?, string?)
+		serial += 1
+		local token = `{options.jobId}:{serial}`
 		local key = self:keyFor(userId)
 		local lastIssue: LoadStatus = "Error"
 		for attempt = 1, maxAttempts do
@@ -79,13 +89,13 @@ function ProfileStore.new(options: Options): ProfileStore
 					if type(record) == "table" and type(record.Lock) == "table" then
 						local lock = record.Lock
 						local fresh = type(lock.Time) == "number" and now - lock.Time < lockTimeout
-						if lock.JobId ~= options.jobId and fresh then
+						if (lock.JobId ~= options.jobId or lock.Token ~= token) and fresh then
 							lockedElsewhere = true
 							return nil -- cancel the write; another server owns this session
 						end
 					end
 					local newRecord = if type(record) == "table" then record else {}
-					newRecord.Lock = { JobId = options.jobId, Time = now }
+					newRecord.Lock = { JobId = options.jobId, Token = token, Time = now }
 					loadedData = newRecord.Data
 					return newRecord
 				end)
@@ -103,19 +113,26 @@ function ProfileStore.new(options: Options): ProfileStore
 					backoff(attempt)
 				end
 			else
+				tokens[userId] = token
 				local profile, status = ProfileSchema.migrate(TableUtil.deepCopy(loadedData))
 				if status == "FutureVersion" then
-					self:release(userId)
-					return "FutureVersion", nil
+					self:release(userId, token)
+					return "FutureVersion", nil, nil
 				end
-				return "Loaded", profile
+				return "Loaded", profile, token
 			end
 		end
 		-- Distinguish "still locked" from transient errors for the caller's messaging.
-		return lastIssue, nil
+		return lastIssue, nil, nil
 	end
 
-	local function write(userId: number, profile: ProfileSchema.Profile?, release: boolean): SaveStatus
+	local function write(
+		userId: number,
+		profile: ProfileSchema.Profile?,
+		release: boolean,
+		sessionToken: string?
+	): SaveStatus
+		local expectedToken = sessionToken or tokens[userId]
 		local key = self:keyFor(userId)
 		for attempt = 1, maxAttempts do
 			local lockLost = false
@@ -126,7 +143,10 @@ function ProfileStore.new(options: Options): ProfileStore
 					-- Foreign lock: another server owns the session. Missing lock on a normal save: we
 					-- already released it (e.g. an autosave landing after the leave-save), so writing
 					-- would silently re-lock a profile whose player has gone.
-					if (lock ~= nil and lock.JobId ~= options.jobId) or (lock == nil and not release) then
+					if
+						(lock ~= nil and (lock.JobId ~= options.jobId or lock.Token ~= expectedToken))
+						or (lock == nil and profile ~= nil)
+					then
 						lockLost = true
 						return nil
 					end
@@ -137,7 +157,7 @@ function ProfileStore.new(options: Options): ProfileStore
 					if release then
 						newRecord.Lock = nil
 					else
-						newRecord.Lock = { JobId = options.jobId, Time = options.now() }
+						newRecord.Lock = { JobId = options.jobId, Token = expectedToken, Time = options.now() }
 					end
 					return newRecord
 				end)
@@ -151,18 +171,21 @@ function ProfileStore.new(options: Options): ProfileStore
 				log(`[ProfileStore] refusing to save {key}: session lock owned by another server`)
 				return "LockLost"
 			else
+				if release and tokens[userId] == expectedToken then
+					tokens[userId] = nil
+				end
 				return "Saved"
 			end
 		end
 		return "Error"
 	end
 
-	function self:save(userId: number, profile: ProfileSchema.Profile, release: boolean): SaveStatus
-		return write(userId, profile, release)
+	function self:save(userId: number, profile: ProfileSchema.Profile, release: boolean, token: string?): SaveStatus
+		return write(userId, profile, release, token)
 	end
 
-	function self:release(userId: number): SaveStatus
-		return write(userId, nil, true)
+	function self:release(userId: number, token: string?): SaveStatus
+		return write(userId, nil, true, token)
 	end
 
 	return self :: ProfileStore

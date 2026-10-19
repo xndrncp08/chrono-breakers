@@ -37,6 +37,7 @@ export type TerminalSpec = {
 
 export type MapDefinition = {
 	name: string,
+	anomalySites: { Vector3 },
 	boundsMin: Vector3,
 	boundsMax: Vector3,
 	floorY: number,
@@ -297,6 +298,12 @@ local function buildVault(): MapDefinition
 
 	return {
 		name = "Chronos Vault",
+		anomalySites = {
+			Vector3.new(-16, 0, -16),
+			Vector3.new(16, 0, 16),
+			Vector3.new(-70, 0, 12),
+			Vector3.new(70, 0, -6),
+		},
 		boundsMin = Vector3.new(-90, -5, -90),
 		boundsMax = Vector3.new(90, 40, 90),
 		floorY = 0,
@@ -393,6 +400,106 @@ local function buildLobby(): LobbyDefinition
 end
 
 MapLayout.Vault = buildVault()
+-- Authored alternatives share the perimeter and sealed extraction contract, with distinct routes.
+local function buildAlternative(id: string, name: string, structures: { { any } }): MapDefinition
+	local original = MapLayout.Vault
+	local boxes: { Box } = {
+		box("Floor", "Floor", Vector3.new(0, -1, 0), Vector3.new(184, 2, 184), "Floor", "Slate"),
+	}
+	wallX(boxes, "OuterNorth", -91, -92, 92, {})
+	wallX(boxes, "OuterSouth", 91, -92, 92, {})
+	wallZ(boxes, "OuterWest", -91, -90, 90, {})
+	wallZ(boxes, "OuterEast", 91, -90, 90, {})
+	wallX(boxes, "DockSeal", 70, -90, 90, { { center = 0, width = 14 } })
+	for _, entry in structures do
+		cover(boxes, entry[1], entry[2], entry[3], entry[4], entry[5], entry[6], entry[7])
+	end
+	for _, x in { -32, 32 } do
+		table.insert(
+			boxes,
+			box("RouteLight", "Trim", Vector3.new(x, 0.08, 0), Vector3.new(0.5, 0.16, 130), "TrimCyan", "Neon", false)
+		)
+	end
+	local map: MapDefinition = table.clone(original)
+	map.name = name
+	map.boxes = boxes
+	map.infiltratorSpawns =
+		{ Vector3.new(-76, 3, 50), Vector3.new(-66, 3, 50), Vector3.new(-76, 3, 60), Vector3.new(-66, 3, 60) }
+	map.extractionSize = Vector3.new(24, 12, 16)
+	map.terminals = {
+		{
+			id = "ArchiveTerminal",
+			name = if id == "Metropolis"
+				then "Transit Relay"
+				elseif id == "Laboratory" then "Genome Archive"
+				else "Past Anchor",
+			position = Vector3.new(-62, 2.5, -87),
+			facing = Vector3.new(0, 0, 1),
+		},
+		{
+			id = "ReactorTerminal",
+			name = if id == "Metropolis"
+				then "Grid Relay"
+				elseif id == "Laboratory" then "Containment Console"
+				else "Future Anchor",
+			position = Vector3.new(87, 2.5, -62),
+			facing = Vector3.new(-1, 0, 0),
+		},
+		{
+			id = "ObservatoryTerminal",
+			name = if id == "Metropolis"
+				then "Skyline Uplink"
+				elseif id == "Laboratory" then "Research Backup"
+				else "Present Anchor",
+			position = Vector3.new(72, 2.5, 56),
+			facing = Vector3.new(-1, 0, 0),
+		},
+	}
+	map.landmarks = {
+		{ name = "West Wing", position = Vector3.new(-60, 0, -50) },
+		{ name = "Core", position = Vector3.new(0, 0, 0) },
+		{ name = "East Wing", position = Vector3.new(60, 0, -50) },
+		{ name = "Breach Dock", position = Vector3.new(0, 0, 55) },
+	}
+	return map
+end
+
+MapLayout.Maps = {
+	Vault = MapLayout.Vault,
+	Metropolis = buildAlternative("Metropolis", "Fractured Metropolis", {
+		{ "WestTower", -55, -40, 24, 28, 28, "Wall" },
+		{ "EastTower", 55, -28, 24, 32, 28, "Wall" },
+		{ "TransitHub", 0, -42, 24, 12, 12, "Cover" },
+		{ "MarketWest", -55, 22, 24, 10, 22, "Shelf" },
+		{ "MarketEast", 55, 24, 24, 10, 22, "Shelf" },
+		{ "Tram", 0, 16, 10, 8, 22, "Pillar" },
+		{ "TaxiWest", -22, -8, 6, 4, 10 },
+		{ "TaxiEast", 24, 44, 6, 4, 10 },
+	}),
+	Laboratory = buildAlternative("Laboratory", "The Forgotten Laboratory", {
+		{ "WestResearchWing", -38, -20, 2, 18, 68, "Wall" },
+		{ "EastResearchWing", 38, -20, 2, 18, 68, "Wall" },
+		{ "ContainmentTank", 0, -6, 16, 18, 16, "Danger" },
+		{ "WestSpecimens", -65, -32, 10, 10, 18, "Shelf" },
+		{ "EastSpecimens", 65, -28, 10, 10, 18, "Shelf" },
+		{ "WestBench", -60, 28, 18, 4, 6 },
+		{ "EastBench", 60, 28, 18, 4, 6 },
+		{ "ControlDesk", 0, -48, 18, 4, 6 },
+		{ "IsolationScreen", 0, 40, 18, 9, 2 },
+	}),
+	Nexus = buildAlternative("Nexus", "Temporal Nexus", {
+		{ "FracturedCore", 0, 0, 18, 24, 18, "Danger" },
+		{ "PastPylon", -44, -38, 10, 20, 10, "Pillar" },
+		{ "FuturePylon", 44, -38, 10, 20, 10, "Pillar" },
+		{ "EchoPylon", -44, 38, 10, 20, 10, "Pillar" },
+		{ "PresentPylon", 44, 38, 10, 20, 10, "Pillar" },
+		{ "WestFracture", -58, 0, 24, 8, 2, "Cover" },
+		{ "EastFracture", 58, 0, 24, 8, 2, "Cover" },
+		{ "NorthFracture", 0, -50, 20, 8, 2, "Cover" },
+		{ "SouthFracture", 0, 50, 20, 8, 2, "Cover" },
+	}),
+} :: { [string]: MapDefinition }
+
 MapLayout.Lobby = buildLobby()
 MapLayout.WALL_HEIGHT = WALL_HEIGHT
 

@@ -1,35 +1,25 @@
-# Release Checklist (first playable)
+# Temporal expansion release checklist
 
-Status legend: [x] verified with evidence · [ ] not yet verified.
+Checked entries have current automated evidence; unchecked entries require live verification.
 
-## Automated gates
-- [x] `./tools/test.sh` — 148/148 passing (2026-10-09)
-- [x] `./tools/analyze.sh` — stylua, selene, luau-lsp strict all clean (2026-10-09)
-- [x] `rojo build default.project.json` succeeds
-- [x] Map contract (bounds, spacing, reachability, gate) validated at startup and in tests
+- [x] Lune unit/integration regression, including twenty five-player model matches
+- [x] StyLua formatting, Selene lint and Luau strict analysis
+- [x] Production/test Rojo builds and production artifact isolation/compilation check
+- [x] All four map contracts, closed-gate access and temporary-fracture routes
+- [x] Versioned profile migration and stale-session/duplicate-reward regression tests
+- [x] Explicit production LoadStringEnabled=false; no Tests/E2EClient in production
+- [ ] Run the new Studio expansion suite with two and five clients; save fresh logs
+- [ ] Run legacy solo/two-player/squad regressions on the updated build
+- [ ] Walk all maps from all four Infiltrator spawns and the Keeper spawn
+- [ ] Review cameras, signals, signage, portals, fractures and hit feedback in player view
+- [ ] Phone landscape/portrait, tablet, physical phone, gamepad and accessibility passes
+- [ ] Published test universe: real DataStore round trip, v2→v3 migration, session conflict,
+      rapid reconnect, shutdown, throttling, lock-loss UI and duplicate calendar rewards
+- [ ] Twenty engine matches: stable runtime/connection/attachment counts and memory after warm-up
+- [ ] Measure five-player server/client/network performance against the documented targets
+- [ ] Review movement tolerance under latency, slowing, dashes, low gravity and portals
+- [ ] Confirm separate test universe, max players 5, correct DataStore name and owner-approved settings
+- [ ] Record release commit and previous place version; review schema-v3 rollback consequences
+- [ ] Obtain explicit authorization before publishing, changing live settings or spending Robux
 
-## Studio verification (required before publishing)
-- [x] Server log shows `[Bootstrap] Chrono Breakers server ready` with no errors (Studio, 2026-10-09)
-- [x] Spawn locations: lobby, Infiltrator spawn, Keeper Sanctum (E2E; 2 of 4 Infiltrator spawns used)
-- [x] Terminals: three prompts, states Locked→Available→Hacking→Completed (E2E; colours not visually reviewed)
-- [x] Extraction: gate opens, extraction completes after 3 s (E2E; visuals not reviewed)
-- [x] Time-Freeze/Trap placement rejects walls, out-of-range, and off-map targets (E2E)
-- [x] Movement returns to 16/17 after every slow/stun/hold (E2E; Phase Dash haste not exercised live)
-- [x] Results screen shows rewards; currency updates; second match pays separately (E2E)
-- [x] 3-player match: one Keeper, simultaneous hacks, teammate resume, disconnect, consistent rewards, Keeper rotation (squad E2E 26/26)
-- [x] Match end destroys live zones/traps; death while slowed respawns at 16 (E2E)
-- [x] UI layout lint clean at the Studio viewport (lobby, HUD, hack panel, results); results/banner and PlayerList overlap fixed
-- [ ] 4–5 player session
-- [ ] Map reviewed from the player's perspective (terminals, gate, Sanctum, Spawn Bay)
-- [ ] UI checked at 1920×1080, 1280×720, phone landscape (Device Emulator), gamepad navigation
-- [ ] DataStore round trip in a published test place (rejoin keeps Scrap/items/settings)
-
-## Configuration review
-- [x] `GameConfig.Studio.AllowSoloMatch` only affects Studio — `MatchService.Init` sets `studioSolo = RunService:IsStudio() and …`; `allowKeeperless` and `soloIntermissionDuration` are only consulted through it (code review, 2026-10-09)
-- [x] `ServerConfig.Security.KickOnFlood` deliberately false (reject + log preferred; documented in `SecurityService`) (code review, 2026-10-09)
-- [x] Audio: only verified `rbxasset://sounds` entries; `LobbyMusic`/`MatchMusic` ids are nil (code review, 2026-10-09)
-
-## Publishing (not authorised yet)
-Runbook and rollback: [RELEASE_READINESS.md](RELEASE_READINESS.md).
-- [ ] Explicit approval from the owner to publish / change experience settings
-- [ ] Experience max players ≥ 5; Studio API access settings as desired
+Procedures and unresolved limits: [EXPANSION_RELEASE](EXPANSION_RELEASE.md).

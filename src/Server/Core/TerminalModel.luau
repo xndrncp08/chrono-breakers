@@ -8,7 +8,7 @@
 --   Interrupted -> Available    (lockout elapsed)
 --   any         -> Locked       (match ended; lockAll) — Completed stays Completed
 --
--- Concurrency rule: exactly one hacker per terminal. Duplicate start requests are rejected with
+-- One primary channel; MatchDirector owns the optional assistant slot. Duplicate primary requests return
 -- "Busy" (other player) or "AlreadyHacking" (same player).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -30,6 +30,7 @@ export type TerminalModel = {
 	state: TerminalState,
 	progress: number,
 	hackerUserId: number?,
+	assistantUserId: number?,
 	lastProgressAt: number,
 	interruptedUntil: number,
 	lastInterruptReason: string?,
@@ -61,6 +62,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		state = "Locked" :: TerminalState,
 		progress = 0,
 		hackerUserId = nil :: number?,
+		assistantUserId = nil :: number?,
 		lastProgressAt = 0,
 		interruptedUntil = 0,
 		lastInterruptReason = nil :: string?,
@@ -120,6 +122,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 			self.progress = 1
 			self.completedBy = self.hackerUserId
 			self.hackerUserId = nil
+			self.assistantUserId = nil
 			setState("Completed")
 			return true
 		end
@@ -132,6 +135,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		end
 		setState("Interrupted")
 		self.hackerUserId = nil
+		self.assistantUserId = nil
 		self.lastInterruptReason = reason
 		self.interruptedUntil = now + lockout
 		if not retainProgress then
@@ -161,6 +165,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 			return false
 		end
 		self.hackerUserId = nil
+		self.assistantUserId = nil
 		self.state = "Locked"
 		return true
 	end

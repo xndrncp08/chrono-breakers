@@ -32,6 +32,9 @@ Protocol.EffectKinds = table.freeze({
 -- Rejection codes returned to clients. Text is shown verbatim in toasts.
 Protocol.Codes = table.freeze({
 	Ok = "Ok",
+	StaleRequest = "StaleRequest",
+	TooEarly = "TooEarly",
+	ChallengeFailed = "ChallengeFailed",
 	RateLimited = "RateLimited",
 	InvalidPayload = "InvalidPayload",
 	WrongPhase = "WrongPhase",
@@ -63,6 +66,9 @@ Protocol.Codes = table.freeze({
 })
 
 Protocol.CodeMessages = table.freeze({
+	StaleRequest = "That interaction has expired.",
+	TooEarly = "Wait for the challenge to stabilize.",
+	ChallengeFailed = "Trace detected! Saved progress reduced.",
 	RateLimited = "Slow down — too many requests.",
 	InvalidPayload = "That request was invalid.",
 	WrongPhase = "You can't do that right now.",

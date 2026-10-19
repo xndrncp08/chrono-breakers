@@ -188,17 +188,30 @@ local function snapshot(): { [string]: any }
 	return out
 end
 
-local function fire(remoteName: string, args: { any }, collectFor: number): { any }
-	local collected = {}
-	local conn = (remotes :: any).ActionResult.OnClientEvent:Connect(function(payload)
-		table.insert(collected, { action = payload.action, ok = payload.ok, code = payload.code })
-	end)
-	-- Placeholders keep the argument count exact (nil holes do not survive remote serialisation).
+local function decodeRequest(remoteName: string, args: { any }, raw: boolean?): ({ any }, number)
 	local count = #args
 	local decoded = table.create(count)
 	for i = 1, count do
 		decoded[i] = decode(args[i])
 	end
+	if not raw and (remoteName == "AbilityRequest" or remoteName == "ObjectiveRequest") then
+		local slot = if remoteName == "AbilityRequest" then 4 else 2
+		for i = count, slot, -1 do
+			decoded[i + 1] = decoded[i]
+		end
+		local state = ClientState.get("snapshot")
+		decoded[slot] = if state then state.matchId else "no-match"
+		count = math.max(slot, count + 1)
+	end
+	return decoded, count
+end
+
+local function fire(remoteName: string, args: { any }, collectFor: number, raw: boolean?): { any }
+	local collected = {}
+	local conn = (remotes :: any).ActionResult.OnClientEvent:Connect(function(payload)
+		table.insert(collected, { action = payload.action, ok = payload.ok, code = payload.code })
+	end)
+	local decoded, count = decodeRequest(remoteName, args, raw)
 	local remote = remotes:FindFirstChild(remoteName) :: RemoteEvent
 	remote:FireServer(table.unpack(decoded, 1, count))
 	task.wait(collectFor)
@@ -231,14 +244,16 @@ channel.OnClientEvent:Connect(function(message: any)
 		if cmd == "snapshot" then
 			return snapshot()
 		elseif cmd == "fire" then
-			return fire(args.remote, args.args or {}, args.collect or 1)
+			return fire(args.remote, args.args or {}, args.collect or 1, args.raw)
 		elseif cmd == "burst" then
 			local collected = {}
 			local conn = (remotes :: any).ActionResult.OnClientEvent:Connect(function(payload)
 				table.insert(collected, payload.code)
 			end)
 			for _ = 1, args.count do
-				(remotes:FindFirstChild(args.remote) :: RemoteEvent):FireServer(table.unpack(args.args))
+				local decoded, count = decodeRequest(args.remote, args.args, args.raw)
+				local remote = remotes:FindFirstChild(args.remote) :: RemoteEvent
+				remote:FireServer(table.unpack(decoded, 1, count))
 			end
 			task.wait(1.5)
 			conn:Disconnect()

@@ -3,10 +3,12 @@
 -- and entry points to Loadout, Settings, and Spectate. Visible whenever the local player is not an
 -- active match participant. Every state shown here comes from the server (snapshot/queue/profile).
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
@@ -119,6 +121,16 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		AutomaticSize = Enum.AutomaticSize.Y,
 		Parent = root,
 	}, { Style.list(Enum.FillDirection.Vertical, Theme.Spacing.S, Enum.HorizontalAlignment.Right) })
+	Button.new({
+		Text = "Deployment & Maps",
+		Style = "Primary",
+		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
+		LayoutOrder = 0,
+		OnActivated = function()
+			deps.UIController.OpenModal("Deployment")
+		end,
+		Parent = menu,
+	})
 	local loadoutButton = Button.new({
 		Text = "Loadout & Shop",
 		Style = "Secondary",
@@ -141,11 +153,21 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		end,
 		Parent = menu,
 	})
+	Button.new({
+		Text = "Career & Contracts",
+		Style = "Secondary",
+		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
+		LayoutOrder = 3,
+		OnActivated = function()
+			deps.UIController.OpenModal("Career")
+		end,
+		Parent = menu,
+	})
 	local spectateButton = Button.new({
 		Text = "Spectate",
 		Style = "Ghost",
 		Size = UDim2.new(1, 0, 0, Theme.MinTouchTarget),
-		LayoutOrder = 3,
+		LayoutOrder = 4,
 		OnActivated = function()
 			deps.AudioController.Play("UiClick")
 			if ClientState.get("spectating") then
@@ -243,6 +265,11 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 			return
 		end
 		currencyLabel.Text = `◆ {profile.currency} {RewardConfig.CurrencyShort}`
+		local title = ItemConfig.get(profile.equipped.Title or "TitleRookie")
+		nameLabel.Text = `{player.DisplayName} / {if title then title.DisplayName else "Recruit"}`
+		if profile.progression then
+			currencyLabel.Text ..= ` · LV {profile.progression.level}`
+		end
 		local s = profile.stats
 		statsLabel.Text = string.format(
 			"Matches %d  ·  Wins %d\nTerminals hacked %d  ·  Extractions %d\nEliminations %d",
@@ -276,7 +303,7 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 		local queued = queue ~= nil and queue.queued
 		local count = if queue then queue.count else snapshot.queueCount
 		local minPlayers = if queue then queue.minPlayers else snapshot.minPlayers
-		local details = {}
+		local details = { `SECTOR / {snapshot.mapName or "Chronos Vault"}` }
 		if queued then
 			table.insert(details, `You're in the queue (#{queue.position} of {count}).`)
 		else
@@ -344,12 +371,15 @@ function LobbyScreen.new(parent: Instance, deps: { [string]: any })
 	local self = {}
 	function self.SetVisible(visible: boolean)
 		root.Visible = visible
+		if not visible and GuiService.SelectedObject and GuiService.SelectedObject:IsDescendantOf(root) then
+			GuiService.SelectedObject = nil
+		end
 		if not visible and ClientState.get("spectating") then
 			deps.CameraController.Stop()
 		end
 	end
 	function self.GetDefaultSelection(): GuiObject
-		return queueButton.Instance
+		return if queueButton.Instance.Selectable then queueButton.Instance else loadoutButton.Instance
 	end
 	return self
 end

@@ -47,6 +47,11 @@ end
 -- Executes a validated Chrono Strike. The caster has already passed AbilityRules.checkCaster.
 -- Returns (ok, code). A swing with no valid target is still a swing (cooldown applies).
 function CombatService.Strike(caster: Player, aim: Vector3): (boolean, string)
+	local flatAim = Vector3.new(aim.X, 0, aim.Z)
+	if flatAim.Magnitude < 1e-3 then
+		return false, Protocol.Codes.InvalidPayload
+	end
+	aim = flatAim.Unit
 	local definition = AbilityConfig.Abilities.ChronoStrike
 	local character = caster.Character
 	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?

@@ -2,6 +2,7 @@
 -- Reusable button with hover, pressed, gamepad-selected, disabled, and loading states. Activated
 -- fires for mouse click, touch tap, and gamepad A (when selected), so one handler serves all inputs.
 
+local UserInputService = game:GetService("UserInputService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
@@ -51,11 +52,16 @@ function ButtonModule.new(props: ButtonProps): Button
 	local hovered = false
 	local selected = false
 	local label = props.Text
+	local keyHint: string? = nil
 
 	local stroke = Style.stroke(PALETTE[style].stroke, Theme.Stroke.Regular, 0)
+	local size = props.Size or UDim2.fromOffset(200, Theme.MinTouchTarget)
+	if size.Y.Scale == 0 then
+		size = UDim2.new(size.X.Scale, size.X.Offset, 0, math.max(size.Y.Offset, Theme.MinTouchTarget))
+	end
 	local instance = Create("TextButton", {
 		Name = "Button_" .. string.gsub(props.Text, "%W", ""),
-		Size = props.Size or UDim2.fromOffset(200, Theme.MinTouchTarget),
+		Size = size,
 		Position = props.Position or UDim2.new(),
 		AnchorPoint = props.AnchorPoint or Vector2.zero,
 		LayoutOrder = props.LayoutOrder or 0,
@@ -70,19 +76,6 @@ function ButtonModule.new(props: ButtonProps): Button
 		Style.corner(Theme.Radius.S) :: Instance,
 		stroke,
 	}) :: TextButton
-
-	local hint = Create("TextLabel", {
-		Name = "Hint",
-		BackgroundTransparency = 1,
-		AnchorPoint = Vector2.new(1, 0.5),
-		Position = UDim2.new(1, -8, 0.5, 0),
-		Size = UDim2.fromOffset(60, 18),
-		Font = Theme.Fonts.Mono,
-		TextSize = Theme.TextSize.Micro,
-		TextXAlignment = Enum.TextXAlignment.Right,
-		Visible = false,
-		Parent = instance,
-	}) :: TextLabel
 
 	-- Visible selection ring for gamepad focus.
 	instance.SelectionImageObject = Create("Frame", {
@@ -115,13 +108,16 @@ function ButtonModule.new(props: ButtonProps): Button
 		end
 		instance.BackgroundColor3 = bg
 		instance.BackgroundTransparency = transparency
-		instance.Text = if loading then "…" else label
-		hint.TextColor3 = instance.TextColor3
+		instance.Text = if loading then "…" elseif keyHint and keyHint ~= "" then `{label} [{keyHint}]` else label
 		instance.Active = enabled and not loading
+		instance.Selectable = enabled and not loading
 		instance.AutoButtonColor = false
 	end
 
 	instance.MouseEnter:Connect(function()
+		if UserInputService:GetLastInputType() == Enum.UserInputType.Touch then
+			return
+		end
 		hovered = true
 		render()
 	end)
@@ -166,8 +162,8 @@ function ButtonModule.new(props: ButtonProps): Button
 	end
 
 	function self:SetHint(value: string?)
-		hint.Text = value or ""
-		hint.Visible = value ~= nil and value ~= ""
+		keyHint = value
+		render()
 	end
 
 	function self:Destroy()

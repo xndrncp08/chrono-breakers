@@ -5,12 +5,17 @@ local ServerConfig = {}
 
 -- Token-bucket limits per remote (see docs/NETWORK_CONTRACT.md).
 ServerConfig.RateLimits = table.freeze({
+	HackChallengeRequest = table.freeze({ capacity = 3, refillPerSecond = 1 }),
+	PingRequest = table.freeze({ capacity = 2, refillPerSecond = 0.25 }),
+	MapVoteRequest = table.freeze({ capacity = 3, refillPerSecond = 0.5 }),
 	QueueRequest = table.freeze({ capacity = 4, refillPerSecond = 1 }),
 	ObjectiveRequest = table.freeze({ capacity = 4, refillPerSecond = 2 }),
 	AbilityRequest = table.freeze({ capacity = 6, refillPerSecond = 4 }),
 	ShopRequest = table.freeze({ capacity = 4, refillPerSecond = 1 }),
 	SettingsUpdate = table.freeze({ capacity = 3, refillPerSecond = 0.5 }),
+	RateNotice = table.freeze({ capacity = 2, refillPerSecond = 0.2 }),
 	ClientReady = table.freeze({ capacity = 2, refillPerSecond = 0.2 }),
+	PortalPrompt = table.freeze({ capacity = 2, refillPerSecond = 0.5 }),
 	HackPrompt = table.freeze({ capacity = 4, refillPerSecond = 2 }),
 })
 
@@ -35,7 +40,7 @@ ServerConfig.Security = table.freeze({
 	FloodKickThreshold = 400,
 	MovementCheckInterval = 0.5,
 	MovementTolerance = 1.6, -- multiplier on the expected max speed
-	MovementSlack = 12, -- studs of slack per sample (knockback, physics)
+	MovementSlack = 6, -- studs of slack per sample (knockback, physics)
 })
 
 ServerConfig.Combat = table.freeze({

@@ -8,6 +8,7 @@ local TweenService = game:GetService("TweenService")
 
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
+local Workspace = game:GetService("Workspace")
 local ClientState = require(script.Parent.Parent.Parent.ClientState)
 local Create = require(script.Parent.Parent.Components.Create)
 local Severity = require(script.Parent.Severity)
@@ -27,7 +28,7 @@ function Toasts.new(parent: Instance): Toasts
 		Name = "ToastStack",
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0),
-		Position = UDim2.new(1, -Theme.Spacing.L, 0, 280), -- below the lobby menu / squad panel
+		Position = UDim2.new(1, -Theme.Spacing.L, 0, 440), -- below the lobby menu / squad panel
 		Size = UDim2.fromOffset(340, 400),
 		ZIndex = 30,
 		Parent = parent,
@@ -43,7 +44,7 @@ function Toasts.new(parent: Instance): Toasts
 		Name = "Banner",
 		AnchorPoint = Vector2.new(0.5, 0),
 		Position = UDim2.new(0.5, 0, 0, 96),
-		Size = UDim2.fromOffset(620, 64),
+		Size = UDim2.fromOffset(620, 88),
 		Color = Theme.Colors.Background,
 		Transparency = 0.15,
 		Radius = Theme.Radius.M,
@@ -51,8 +52,8 @@ function Toasts.new(parent: Instance): Toasts
 	})
 	banner.Visible = false
 	banner.ZIndex = 15 -- above the HUD but beneath modals (20), so it never covers a dialog's title bar
-	Create("UISizeConstraint", { MaxSize = Vector2.new(620, 64), Parent = banner })
-	banner.Size = UDim2.new(0.9, 0, 0, 64)
+	Create("UISizeConstraint", { MaxSize = Vector2.new(620, 88), Parent = banner })
+	banner.Size = UDim2.new(0.9, 0, 0, 88)
 	local bannerAccent = Create("Frame", {
 		Name = "Accent",
 		Size = UDim2.new(0, 4, 1, -16),
@@ -63,13 +64,14 @@ function Toasts.new(parent: Instance): Toasts
 	local bannerText = Style.text({
 		Name = "Text",
 		Font = Theme.Fonts.Heading,
-		TextSize = Theme.TextSize.Heading,
+		TextSize = Theme.TextSize.Body,
 		Size = UDim2.new(1, -40, 1, 0),
 		Position = UDim2.fromOffset(26, 0),
 		XAlign = Enum.TextXAlignment.Center,
 		Parent = banner,
 	})
 	local bannerToken = 0
+	local bannerTween: Tween? = nil
 	local order = 0
 
 	local self = {} :: any
@@ -84,7 +86,12 @@ function Toasts.new(parent: Instance): Toasts
 		table.sort(children, function(a, b)
 			return a.LayoutOrder < b.LayoutOrder
 		end)
-		while #children >= MAX_TOASTS do
+		local camera = Workspace.CurrentCamera
+		local compact = ClientState.get("inputType") == "Touch" and camera ~= nil and camera.ViewportSize.Y < 600
+		stack.Position = UDim2.new(1, -Theme.Spacing.L, 0, if compact then 115 else 440)
+		stack.Size = UDim2.fromOffset(if compact then 300 else 340, 400)
+		local limit = if compact then 1 else MAX_TOASTS
+		while #children >= limit do
 			local oldest = table.remove(children, 1)
 			if oldest then
 				oldest:Destroy()
@@ -121,6 +128,15 @@ function Toasts.new(parent: Instance): Toasts
 	end
 
 	function self:Announce(text: string, severity: string?, duration: number?)
+		local userId = game:GetService("Players").LocalPlayer.UserId
+		for _, terminal in ClientState.get("terminals") or {} do
+			if
+				terminal.state == "Hacking" and (terminal.hackerUserId == userId or terminal.assistantUserId == userId)
+			then
+				self:Toast(text, severity, duration)
+				return
+			end
+		end
 		bannerToken += 1
 		local token = bannerToken
 		local color = Severity.color(severity)
@@ -128,11 +144,22 @@ function Toasts.new(parent: Instance): Toasts
 		bannerText.TextColor3 = color
 		bannerText.Text = text
 		banner.Visible = true
+		if bannerTween then
+			bannerTween:Cancel()
+			bannerTween = nil
+		end
 		local settings = ClientState.get("settings")
 		if not (settings and settings.ReducedMotion) then
 			banner.Position = UDim2.new(0.5, 0, 0, 80)
-			TweenService:Create(banner, TweenInfo.new(Theme.Motion.Normal), { Position = UDim2.new(0.5, 0, 0, 96) })
-				:Play()
+			bannerTween = TweenService:Create(
+				banner,
+				TweenInfo.new(Theme.Motion.Normal, Enum.EasingStyle.Quint, Enum.EasingDirection.Out),
+				{ Position = UDim2.new(0.5, 0, 0, 96) }
+			)
+			local current = bannerTween :: Tween
+			current:Play()
+		else
+			banner.Position = UDim2.new(0.5, 0, 0, 96)
 		end
 		task.delay(duration or 4, function()
 			if bannerToken == token then

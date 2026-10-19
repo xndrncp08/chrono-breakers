@@ -1,0 +1,57 @@
+Temporal expansion automated verification
+UTC: 2026-10-19T03:34:31.179982+00:00
+Source: working tree included in the final release-validation commit.
+These are offline/static/artifact checks, not Roblox engine execution.
+
+$ rojo --version
+Rojo 7.7.1
+Exit: 0
+
+$ lune --version
+lune 0.10.5
+Exit: 0
+
+$ stylua --version
+stylua 2.5.2
+Exit: 0
+
+$ selene --version
+selene 0.32.0
+Exit: 0
+
+$ /Users/derrancap/.local/bin/luau-lsp --version
+1.70.1
+Exit: 0
+
+$ ./tools/test.sh
+Running 25 spec modules from build/test.rbxl
+
+174 passed, 0 failed
+Exit: 0
+
+$ ./tools/analyze.sh
+== stylua --check
+== selene
+Results:
+0 errors
+0 warnings
+0 parse errors
+== luau-lsp analyze
+[INFO] Loading definitions file: @roblox - .cache/globalTypes.d.luau
+[WARN] client does not allow didChangeWatchedFiles registration - automatic updating on sourcemap changes disabled
+[INFO] Loading Luau configuration from /Users/derrancap/Der's Projects/chrono-breakers/chrono-breakers/.luaurc
+All static checks passed.
+Exit: 0
+
+$ rojo build default.project.json -o build/game.rbxl
+Building project 'ChronoBreakers'
+Built project to game.rbxl
+Exit: 0
+
+$ lune run tools/verify-build.luau
+Production artifact verified: 93 scripts compile; test code absent; LoadStringEnabled=false; 194584 bytes
+Exit: 0
+
+$ git diff --check
+Exit: 0
+

@@ -3,15 +3,20 @@
 -- terminal hacking panel (progress / interruption / completion), extraction channel bar, ability
 -- bar, and control hints. Renders only server-provided state.
 
+local ContextActionService = game:GetService("ContextActionService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
 
+local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local AnomalyConfig = require(ReplicatedStorage.Shared.Config.AnomalyConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 local TableUtil = require(ReplicatedStorage.Shared.Modules.TableUtil)
 
+local Net = require(script.Parent.Parent.Parent.Net)
 local ClientState = require(script.Parent.Parent.Parent.ClientState)
 local AbilityBar = require(script.Parent.AbilityBar)
 local Button = require(script.Parent.Parent.Components.Button)
@@ -21,6 +26,7 @@ local Style = require(script.Parent.Parent.Components.Style)
 
 local HudScreen = {}
 
+local Workspace = game:GetService("Workspace")
 local player = Players.LocalPlayer
 
 local STATUS_TEXT: { [string]: string } = {
@@ -77,6 +83,19 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = timerPanel,
 	})
 
+	local anomalyLabel = Style.text({
+		Name = "Anomaly",
+		Text = "",
+		AnchorPoint = Vector2.new(0.5, 0),
+		Position = UDim2.new(0.5, 0, 0, 88),
+		Size = UDim2.fromOffset(420, 48),
+		TextSize = Theme.TextSize.Small,
+		Font = Theme.Fonts.Heading,
+		XAlign = Enum.TextXAlignment.Center,
+		Color = Theme.Colors.Warning,
+		Parent = root,
+	})
+
 	-- Objectives (left, below the chat area)
 	local objectives = Style.panel({
 		Name = "Objectives",
@@ -123,6 +142,17 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = objectives,
 	})
 
+	local pingButton = Button.new({
+		Text = "Team ping / G · R1",
+		Style = "Secondary",
+		Size = UDim2.new(1, 0, 0, 48),
+		LayoutOrder = 5,
+		OnActivated = function()
+			deps.InputController.Ping()
+		end,
+		Parent = objectives,
+	})
+
 	-- Team status (top right)
 	local team = Style.panel({
 		Name = "Team",
@@ -134,7 +164,7 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = root,
 	})
 	Style.list(Enum.FillDirection.Vertical, Theme.Spacing.XS).Parent = team
-	Style.text({
+	local teamHeading = Style.text({
 		Text = "SQUAD STATUS",
 		Font = Theme.Fonts.Heading,
 		TextSize = Theme.TextSize.Micro,
@@ -181,7 +211,7 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Name = "HackPanel",
 		AnchorPoint = Vector2.new(0.5, 1),
 		Position = UDim2.new(0.5, 0, 1, -176),
-		Size = UDim2.fromOffset(380, 112),
+		Size = UDim2.fromOffset(420, 292),
 		Color = Theme.Colors.Background,
 		Transparency = 0.1,
 		StrokeColor = Theme.Colors.Warning,
@@ -200,7 +230,7 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 	})
 	local hackBar = ProgressBar.new({
 		Size = UDim2.new(1, 0, 0, 18),
-		Position = UDim2.fromOffset(0, 30),
+		Position = UDim2.fromOffset(0, 68),
 		Color = Theme.Colors.Warning,
 		Parent = hackPanel,
 	})
@@ -209,13 +239,13 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		TextSize = Theme.TextSize.Micro,
 		Color = Theme.Colors.TextSecondary,
 		Size = UDim2.new(1, 0, 0, 30),
-		Position = UDim2.fromOffset(0, 54),
+		Position = UDim2.fromOffset(0, 94),
 		Parent = hackPanel,
 	})
 	local cancelButton = Button.new({
 		Text = "Cancel",
 		Style = "Ghost",
-		Size = UDim2.fromOffset(100, 32),
+		Size = UDim2.fromOffset(100, 48),
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, 0, 0, -4),
 		TextSize = Theme.TextSize.Small,
@@ -224,6 +254,43 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		end,
 		Parent = hackPanel,
 	})
+
+	local challengePrompt = Style.text({
+		Text = "",
+		Size = UDim2.new(1, 0, 0, 42),
+		Position = UDim2.fromOffset(0, 130),
+		Font = Theme.Fonts.Mono,
+		TextSize = Theme.TextSize.Small,
+		Parent = hackPanel,
+	})
+	local challengeButtons: { Button.Button } = {}
+	local function submitChallenge(answer: number)
+		local snapshot = ClientState.get("snapshot")
+		for _, terminal in ClientState.get("terminals") or {} do
+			if terminal.hackerUserId == player.UserId and terminal.challenge and snapshot then
+				Net.send(
+					RemoteNames.HackChallengeRequest,
+					snapshot.matchId,
+					terminal.id,
+					terminal.challenge.nonce,
+					answer
+				)
+				return
+			end
+		end
+	end
+	for answer = 1, 3 do
+		challengeButtons[answer] = Button.new({
+			Text = tostring(answer),
+			Style = "Secondary",
+			Size = UDim2.new(1 / 3, -6, 0, 48),
+			Position = UDim2.new((answer - 1) / 3, 0, 0, 180),
+			OnActivated = function()
+				submitChallenge(answer)
+			end,
+			Parent = hackPanel,
+		})
+	end
 
 	-- Extraction channel bar
 	local extractPanel = Style.panel({
@@ -266,7 +333,37 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		Parent = root,
 	})
 
+	anomalyLabel.Parent = objectives
+	anomalyLabel.Size = UDim2.new(1, 0, 0, 40)
+	anomalyLabel.LayoutOrder = 6
 	local abilityBar = AbilityBar.new(root, deps)
+
+	local function layout()
+		local camera = Workspace.CurrentCamera
+		local narrow = camera ~= nil and camera.ViewportSize.X < 700
+		objectives.Size = UDim2.fromOffset(if narrow then 205 else 260, 0)
+		objectives.Position = UDim2.new(0, Theme.Spacing.L, if narrow then 0.34 else 0.45, 0)
+		team.Size = UDim2.fromOffset(if narrow then 175 else 230, 0)
+		team.Position = UDim2.new(1, -Theme.Spacing.L, 0, if narrow then 100 else Theme.Spacing.S)
+		timerPanel.Size = UDim2.fromOffset(if narrow then 190 else 220, 74)
+		local shortTouch = camera ~= nil and camera.ViewportSize.Y < 600 and ClientState.get("inputType") == "Touch"
+		teamRows.Visible = not shortTouch
+	end
+	Button.new({
+		Text = "Settings",
+		Style = "Ghost",
+		Size = UDim2.new(1, 0, 0, 48),
+		LayoutOrder = 2,
+		OnActivated = function()
+			deps.UIController.OpenModal("Settings")
+		end,
+		Parent = team,
+	})
+	local camera = Workspace.CurrentCamera
+	if camera then
+		camera:GetPropertyChangedSignal("ViewportSize"):Connect(layout)
+	end
+	layout()
 
 	local interruptedUntil = 0
 	local lastHackTerminal: string? = nil
@@ -276,6 +373,15 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		local snapshot = ClientState.get("snapshot")
 		if not snapshot then
 			return
+		end
+		local anomaly = snapshot.anomaly
+		anomalyLabel.Visible = anomaly ~= nil
+		if anomaly then
+			local definition = (AnomalyConfig.Events :: any)[anomaly.kind]
+			local warning = anomaly.state == "Warning"
+			local left =
+				math.max(0, math.ceil((if warning then anomaly.activatesAt else anomaly.endsAt) - ClientState.now()))
+			anomalyLabel.Text = `{definition.Name} / {if warning then "INCOMING" else "ACTIVE"} {left}s`
 		end
 		local phase = snapshot.phase
 		local remaining = if snapshot.phaseEndsAt then snapshot.phaseEndsAt - ClientState.now() else 0
@@ -297,25 +403,28 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		timeLabel.TextColor3 = color
 	end
 
+	local objectiveLabels: { [string]: TextLabel } = {}
+	local teamLabels: { [number]: TextLabel } = {}
 	local function renderObjectives()
 		local snapshot = ClientState.get("snapshot")
 		local role = ClientState.currentRole()
 		if not snapshot then
 			return
 		end
+		pingButton.Instance.Visible = role ~= nil and role.role == "Infiltrator"
 		if role then
 			local color = (Theme.RoleColors :: any)[role.role] or Theme.Colors.Stable
-			roleBadge.Text = string.upper(role.displayName)
+			local class = ClassConfig.get(role.classId)
+			roleBadge.Text = string.upper(if class then class.Name else role.displayName)
+			if class then
+				color = class.Color
+			end
 			roleBadge.TextColor3 = color
 			objectiveHeader.Text = if role.role == "TimeKeeper"
 				then `STOP THE BREACH · {snapshot.completedHacks}/{snapshot.requiredHacks} breached`
 				else `HACK TERMINALS · {snapshot.completedHacks}/{snapshot.requiredHacks}`
 		end
-		for _, child in terminalRows:GetChildren() do
-			if child:IsA("TextLabel") then
-				child:Destroy()
-			end
-		end
+
 		local terminals = ClientState.get("terminals") or {}
 		for index, publicTerminal in snapshot.terminals do
 			local terminal = terminals[publicTerminal.id] or publicTerminal
@@ -325,14 +434,14 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 			if (state == "Hacking" or state == "Interrupted" or state == "Available") and terminal.progress > 0 then
 				suffix = string.format("  %d%%", math.floor(terminal.progress * 100))
 			end
-			Style.text({
-				Text = `{TERMINAL_ICON[state] or "·"}  {terminal.name}{suffix}`,
-				TextSize = Theme.TextSize.Small,
-				Color = color,
-				Wrapped = false,
-				LayoutOrder = index,
-				Parent = terminalRows,
-			})
+			local row = objectiveLabels[terminal.id]
+			if not row then
+				row = Style.text({ TextSize = Theme.TextSize.Small, Wrapped = false, Parent = terminalRows })
+				objectiveLabels[terminal.id] = row
+			end
+			row.Text = `{TERMINAL_ICON[state] or "·"}  {terminal.name}{suffix}`
+			row.TextColor3 = color
+			row.LayoutOrder = index
 		end
 		if snapshot.extractionActive then
 			extractionRow.Text = "⇪  EXTRACTION OPEN — reach the Breach Dock"
@@ -344,29 +453,42 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 
 	local function renderTeam()
 		local snapshot = ClientState.get("snapshot")
-		for _, child in teamRows:GetChildren() do
-			if child:IsA("TextLabel") then
-				child:Destroy()
-			end
-		end
+
 		if not snapshot then
 			return
 		end
+		local seen: { [number]: boolean } = {}
+		local alive, total = 0, 0
 		for index, p in snapshot.participants do
+			seen[p.userId] = true
+			if p.role == "Infiltrator" then
+				total += 1
+				if p.status == "Active" then
+					alive += 1
+				end
+			end
 			local color = (Theme.RoleColors :: any)[p.role] or Theme.Colors.TextPrimary
 			if p.status ~= "Active" then
 				color = color:Lerp(Theme.Colors.TextMuted, 0.6)
 			end
 			local you = if p.userId == player.UserId then " (you)" else ""
-			local roleTag = if p.role == "TimeKeeper" then "KEEPER" else "INF"
-			Style.text({
-				Text = `{roleTag}  {TableUtil.truncate(p.name, 14)}{you}  {STATUS_TEXT[p.status] or ""}`,
-				TextSize = Theme.TextSize.Small,
-				Color = color,
-				Wrapped = false,
-				LayoutOrder = index,
-				Parent = teamRows,
-			})
+			local class = ClassConfig.get(p.classId)
+			local roleTag = if p.role == "TimeKeeper" then "KEEPER" elseif class then string.upper(class.Name) else "INF"
+			local row = teamLabels[p.userId]
+			if not row then
+				row = Style.text({ TextSize = Theme.TextSize.Small, Wrapped = false, Parent = teamRows })
+				teamLabels[p.userId] = row
+			end
+			row.Text = `{STATUS_TEXT[p.status] or ""}  {TableUtil.truncate(p.name, 12)}{you} / {roleTag}`
+			row.TextColor3 = color
+			row.LayoutOrder = index
+		end
+		teamHeading.Text = `SQUAD / {alive} OF {total} ACTIVE`
+		for id, row in teamLabels do
+			if not seen[id] then
+				row:Destroy()
+				teamLabels[id] = nil
+			end
 		end
 	end
 
@@ -417,20 +539,44 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		local terminals = ClientState.get("terminals") or {}
 		local mine: any = nil
 		for _, terminal in terminals do
-			if terminal.hackerUserId == player.UserId and terminal.state == "Hacking" then
+			if
+				(terminal.hackerUserId == player.UserId or terminal.assistantUserId == player.UserId)
+				and terminal.state == "Hacking"
+			then
 				mine = terminal
 			end
 		end
 		local now = os.clock()
+		local challenge = if mine and mine.hackerUserId == player.UserId then mine.challenge else nil
+		challengePrompt.Visible = challenge ~= nil
+		for answer, button in challengeButtons do
+			button.Instance.Visible = challenge ~= nil and (challenge.mode ~= "Timing" or answer == 1)
+			if challenge then
+				local remaining = challenge.opensAt - ClientState.now()
+				button:SetText(
+					if challenge.mode == "Timing"
+						then (if remaining > 0
+							then string.format("WAIT %.1f", remaining)
+							elseif ClientState.now() <= challenge.closesAt then "LOCK NOW"
+							else "MISSED")
+						else tostring(answer)
+				)
+			end
+		end
+		hackPanel.Size = UDim2.fromOffset(420, if challenge then 292 else 168)
+		if challenge then
+			challengePrompt.Text = `{challenge.mode} / {challenge.prompt}`
+		end
 		if mine then
 			lastHackTerminal = mine.id
 			hackPanel.Visible = true
-			hackTitle.Text = `HACKING · {mine.name}`
+			hackTitle.Text = `{if mine.assistantUserId == player.UserId then "ASSIST" else "HACK"} · {mine.name}`
 			hackTitle.TextColor3 = Theme.Colors.Warning
 			hackBar:Set(mine.progress, Theme.Colors.Warning)
 			hackBar:SetLabel(string.format("%d%%", math.floor(mine.progress * 100)))
-			hackDetail.Text =
-				`Stay within {TerminalConfig.MaxInteractionDistance} studs. Taking damage interrupts the hack.`
+			hackDetail.Text = `Safe channel · optional challenge +8% / failure −6%. {if mine.assistantUserId
+				then "CO-OP +35%"
+				else "Teammates can assist."}`
 			cancelButton.Instance.Visible = true
 			local hint = ""
 			local inputType = ClientState.get("inputType")
@@ -469,6 +615,24 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		if shouldBind ~= hackBound then
 			hackBound = shouldBind
 			deps.InputController.SetHackCancelBound(shouldBind)
+			if shouldBind then
+				for answer, key in { Enum.KeyCode.One, Enum.KeyCode.Two, Enum.KeyCode.Three } do
+					local gamepad = ({ Enum.KeyCode.DPadLeft, Enum.KeyCode.DPadUp, Enum.KeyCode.DPadRight })[answer]
+					ContextActionService:BindAction(`HackAnswer{answer}`, function(_, state)
+						if ClientState.get("modal") then
+							return Enum.ContextActionResult.Pass
+						end
+						if state == Enum.UserInputState.Begin then
+							submitChallenge(answer)
+						end
+						return Enum.ContextActionResult.Sink
+					end, false, key, gamepad)
+				end
+			else
+				for answer = 1, 3 do
+					ContextActionService:UnbindAction(`HackAnswer{answer}`)
+				end
+			end
 		end
 	end
 
@@ -539,6 +703,7 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		elseif key == "extraction" then
 			renderExtraction()
 		elseif key == "inputType" or key == "settings" or key == "role" then
+			layout()
 			renderHints()
 		end
 	end)
@@ -572,6 +737,9 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 			if hackBound then
 				hackBound = false
 				deps.InputController.SetHackCancelBound(false)
+				for answer = 1, 3 do
+					ContextActionService:UnbindAction(`HackAnswer{answer}`)
+				end
 			end
 		end
 	end

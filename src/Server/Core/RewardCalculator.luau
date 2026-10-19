@@ -3,6 +3,7 @@
 -- Pure: never touches profiles. Applying the reward (idempotently) is RewardLedger's job.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ProgressionConfig = require(ReplicatedStorage.Shared.Config.ProgressionConfig)
 local GameTypes = require(ReplicatedStorage.Shared.Types.GameTypes)
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
 
@@ -10,6 +11,7 @@ export type ResultLike = {
 	matchId: string,
 	winner: GameTypes.Team?,
 	reason: GameTypes.ResolutionReason,
+	rewardedAt: number?,
 }
 
 export type ParticipantLike = {
@@ -20,10 +22,15 @@ export type ParticipantLike = {
 	hacks: number,
 	eliminations: number,
 	extracted: boolean,
+	assists: number?,
+	classId: string?,
 }
 
 export type Breakdown = {
 	eligible: boolean,
+	xp: number,
+	masteryId: string?,
+	timestamp: number?,
 	won: boolean,
 	lines: { GameTypes.RewardLine },
 	total: number,
@@ -44,12 +51,28 @@ end
 
 function RewardCalculator.compute(result: ResultLike, participant: ParticipantLike): Breakdown
 	local won = RewardCalculator.didWin(participant.role, result.winner)
-	local breakdown: Breakdown = { eligible = false, won = won, lines = {}, total = 0, statDeltas = {} }
+	local breakdown: Breakdown = {
+		eligible = false,
+		won = won,
+		lines = {},
+		total = 0,
+		statDeltas = {},
+		xp = 0,
+		masteryId = if participant.role == "TimeKeeper" then "TimeKeeper" else participant.classId,
+		timestamp = result.rewardedAt,
+	}
 	-- Aborted matches and players who left before the result are not eligible.
 	if result.reason == "Aborted" or not participant.connected then
 		return breakdown
 	end
 	breakdown.eligible = true
+	local xp = ProgressionConfig.XP
+	breakdown.xp = xp.Participation
+		+ (if won then xp.Win else 0)
+		+ participant.hacks * xp.Hack
+		+ (participant.assists or 0) * xp.Assist
+		+ participant.eliminations * xp.Elimination
+		+ (if participant.extracted then xp.Extraction else 0)
 
 	local function line(label: string, amount: number)
 		if amount > 0 then
@@ -72,6 +95,8 @@ function RewardCalculator.compute(result: ResultLike, participant: ParticipantLi
 	end
 
 	local deltas = breakdown.statDeltas
+	deltas.HackAssists = participant.assists or 0
+	deltas.KeeperWins = if won and participant.role == "TimeKeeper" then 1 else 0
 	deltas.MatchesPlayed = 1
 	deltas.Wins = if won then 1 else 0
 	deltas.Losses = if won then 0 else 1

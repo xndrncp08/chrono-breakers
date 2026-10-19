@@ -59,3 +59,19 @@ Status 2026-10-09: full server+client implemented; 133 Lune tests green; analyze
 Follow the open-issue table in [RELEASE_READINESS.md](RELEASE_READINESS.md): DataStore round trip in a
 separate test experience, Device Emulator + gamepad pass, player-perspective map review, a 4–5
 player session.
+
+## Temporal expansion (2026-10-18)
+
+- [x] Four authored maps, selected-participant voting, lifecycle rebuilds and map-contract regressions
+- [x] Five free classes, Keeper tracking, co-op and interactive hacking
+- [x] Eight bounded anomalies, portals/gravity/fractures/rewind, cleanup and pure scheduling tests
+- [x] Schema-v3 XP/mastery/calendar contracts, milestones/titles and session-token fencing
+- [x] Team pings/markers, HUD reuse, shared modal/focus/accessibility and native cinematics
+- [x] New offline regression coverage and artifact isolation/compilation verifier
+- [x] Optional Studio expansion harness written and statically checked
+- [ ] Execute the new Studio harness, full five-client sessions and repeated-match engine profiling
+- [ ] Published test DataStore migration/locking/reconnect/shutdown checks
+- [ ] Physical touch/gamepad, responsive layout, map/camera visual review and latency calibration
+
+Current release gate and rollback rules: [EXPANSION_RELEASE](EXPANSION_RELEASE.md). Historical
+checked Studio items above do not validate this expansion.

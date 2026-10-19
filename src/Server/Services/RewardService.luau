@@ -37,6 +37,10 @@ function RewardService.HasPaid(matchId: string, userId: number): boolean
 end
 
 function RewardService.GrantMatchRewards(result: any)
+	local session = deps.MatchService.GetDirector().session
+	if not session or session.result ~= result or deps.MatchService.GetPhase() ~= "Resolving" then
+		return
+	end
 	local publicParticipants: { GameTypes.PublicParticipant } = {}
 	for userId, p in result.participants do
 		table.insert(publicParticipants, { userId = userId, name = p.name, role = p.role, status = p.status })
@@ -55,12 +59,18 @@ function RewardService.GrantMatchRewards(result: any)
 		end
 		remember(key)
 		local player = Players:GetPlayerByUserId(userId)
-		local breakdown = RewardCalculator.compute(result, participant)
+		local credited = table.clone(participant)
+		credited.classId = if player then deps.MatchService.GetMatchClass(player) else nil
+		local context = table.clone(result)
+		context.rewardedAt = os.time()
+		local breakdown = RewardCalculator.compute(context, credited)
+		local notifications: { string } = {}
 		local saved = false
 		local granted = 0
 		if player and breakdown.eligible then
 			local applied, amount = deps.PlayerDataService.Mutate(player, function(profile)
-				local didApply, got = RewardLedger.apply(profile, result.matchId, breakdown)
+				local didApply, got, messages = RewardLedger.apply(profile, result.matchId, breakdown)
+				notifications = messages or {}
 				return if didApply then got else -1
 			end)
 			if applied and amount ~= nil and amount >= 0 then
@@ -72,6 +82,9 @@ function RewardService.GrantMatchRewards(result: any)
 			end
 		end
 		if player then
+			for _, message in notifications do
+				deps.NetworkService.Notify({ player }, "Toast", message, "Success", 6)
+			end
 			local payload: GameTypes.MatchResultPayload = {
 				matchId = result.matchId,
 				winner = result.winner,
@@ -82,6 +95,8 @@ function RewardService.GrantMatchRewards(result: any)
 				rewards = breakdown.lines,
 				rewardTotal = granted,
 				rewardsSaved = saved,
+				xp = breakdown.xp,
+				progressionRewards = notifications,
 				stats = {
 					hacks = participant.hacks,
 					eliminations = participant.eliminations,

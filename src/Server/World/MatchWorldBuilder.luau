@@ -1,6 +1,6 @@
 --!strict
--- Builds the lobby and the Chronos Vault from MapLayout data. Deterministic: the same layout always
--- produces the same instances. Called once at server start, after MapValidator has passed.
+-- Builds the lobby and selected authored map deterministically at startup and between matches.
+-- Every registered layout must pass MapValidator before gameplay starts.
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
@@ -161,14 +161,15 @@ local function makeTerminal(spec: MapLayout.TerminalSpec, parent: Instance): Ter
 	}
 end
 
-local function applyLighting()
-	Lighting.ClockTime = 0
+local function applyLighting(map: MapLayout.MapDefinition)
+	local atmosphere = (Theme.Atmospheres :: any)[map.name]
+	Lighting.ClockTime = atmosphere.Clock
 	Lighting.Brightness = 1.2
-	Lighting.Ambient = Color3.fromRGB(46, 52, 84)
+	Lighting.Ambient = atmosphere.Ambient
 	Lighting.OutdoorAmbient = Color3.fromRGB(56, 64, 100)
 	Lighting.EnvironmentDiffuseScale = 0.4
 	Lighting.EnvironmentSpecularScale = 0.6
-	Lighting.FogColor = Color3.fromRGB(10, 14, 28)
+	Lighting.FogColor = atmosphere.Fog
 	Lighting.FogStart = 120
 	Lighting.FogEnd = 520
 	Lighting.GlobalShadows = true
@@ -229,12 +230,13 @@ local function makeLobbySign(lobby: MapLayout.LobbyDefinition, parent: Instance)
 	subtitle.Parent = gui
 end
 
-function MatchWorldBuilder.build(): BuiltWorld
+function MatchWorldBuilder.build(selectedMap: MapLayout.MapDefinition?): BuiltWorld
+	local map = selectedMap or MapLayout.Vault
 	local existing = Workspace:FindFirstChild("ChronoBreakers")
 	if existing then
 		existing:Destroy()
 	end
-	applyLighting()
+	applyLighting(map)
 
 	local root = Instance.new("Folder")
 	root.Name = "ChronoBreakers"
@@ -268,9 +270,28 @@ function MatchWorldBuilder.build(): BuiltWorld
 	local static = Instance.new("Folder")
 	static.Name = "Static"
 	static.Parent = vault
-	local map = MapLayout.Vault
 	for _, box in map.boxes do
 		makePart(box, static)
+	end
+
+	for _, landmark in map.landmarks do
+		local sign = Instance.new("Part")
+		sign.Name = "Wayfinding_" .. landmark.name
+		sign.Anchored, sign.CanCollide, sign.CanQuery, sign.CanTouch = true, false, false, false
+		sign.Size, sign.Position = Vector3.new(14, 2, 0.2), landmark.position + Vector3.new(0, 16, 0)
+		sign.Color, sign.Material = Theme.World.TerminalBody, Enum.Material.Metal
+		sign.Parent = static
+		local gui = Instance.new("SurfaceGui")
+		gui.Face, gui.SizingMode, gui.PixelsPerStud, gui.LightInfluence =
+			Enum.NormalId.Front, Enum.SurfaceGuiSizingMode.PixelsPerStud, 30, 0
+		gui.Parent = sign
+		local text = Instance.new("TextLabel")
+		text.Size, text.BackgroundTransparency, text.Text, text.Font, text.TextScaled, text.TextColor3 =
+			UDim2.fromScale(1, 1), 1, string.upper(landmark.name), Theme.Fonts.Heading, true, Theme.Colors.Stable
+		text.Parent = gui
+		local reverse = gui:Clone()
+		reverse.Face = Enum.NormalId.Back
+		reverse.Parent = sign
 	end
 
 	local terminalsFolder = Instance.new("Folder")
@@ -319,6 +340,7 @@ function MatchWorldBuilder.build(): BuiltWorld
 	runtime.Name = "Runtime"
 	runtime.Parent = root
 
+	root:SetAttribute("MapName", map.name)
 	root.Parent = Workspace
 
 	return {

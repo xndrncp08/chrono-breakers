@@ -11,12 +11,12 @@ error boundary, and SecurityService reporting. Extra arguments are rejected.
 | Remote | Payload | Validation | Rate limit (burst / per s) | Response |
 | --- | --- | --- | --- | --- |
 | `QueueRequest` | `action: "Join" \| "Leave"` | enum; ≤1 arg; Join requires alive + not in a match; duplicate join/leave rejected | 4 / 1 | `ActionResult{action="Queue"}`, `QueueState` to all |
-| `ObjectiveRequest` | `action: "Cancel"` | enum; ≤1 arg; must currently be hacking | 4 / 2 | interruption via `TerminalUpdate`/`Notify`, or `ActionResult` reject |
-| `AbilityRequest` | `abilityId: string, target: Vector3?, aim: Vector3?` | ≤3 args; id ≤32 chars & known; finite Vector3 (|coord| ≤ 100000); aim non-zero; phase Active/Extraction; participant; role; equipped gadget; alive; not stunned/held; server cooldown; ability-specific placement (range, bounds, walkable, LOS, limits, spacing) | 6 / 4 | `ActionResult{action="Ability"}` + `AbilityState`; effects via `Effect` |
+| `ObjectiveRequest` | `action: "Cancel", matchId: string` | enum; ≤2 args; current match id; must currently be hacking | 4 / 2 | interruption via `TerminalUpdate`/`Notify`, or `ActionResult` reject |
+| `AbilityRequest` | `abilityId: string, target: Vector3?, aim: Vector3?, matchId: string` | ≤4 args; current match id ≤64 chars; id ≤32 chars & known; finite Vector3 (|coord| ≤ 100000); aim non-zero; phase Active/Extraction; participant; role; equipped gadget; alive; not stunned/held; server cooldown; ability-specific placement (range, bounds, walkable, LOS, limits, spacing) | 6 / 4 | `ActionResult{action="Ability"}` + `AbilityState`; effects via `Effect` |
 | `ShopRequest` | `action: "Purchase" \| "Equip", itemId: string` | ≤2 args; enum; id ≤32 & known; not in a live match; atomic economy op on server profile | 4 / 1 | `ActionResult{action="Shop"}` + `ProfileSnapshot` |
 | `SettingsUpdate` | `{ [settingKey]: value }` | plain table, no metatable, ≤8 keys, keys from `ProfileSchema.SETTINGS`, each value type/range checked (whole request rejected if any invalid) | 3 / 0.5 | `ActionResult{action="Settings"}` + `ProfileSnapshot` |
 | `ClientReady` | none | 0 args | 2 / 0.2 | `MatchState`, `QueueState`, `ProfileSnapshot`, and if in a match `RoleAssigned` + `AbilityState` |
-| *(ProximityPrompt)* `HackPrompt` | engine `Triggered(player)` | rate key `HackPrompt` 4 / 2; then full hack validation in `MatchDirector:requestHackStart` (phase, participant, role, alive, restrained, registered terminal, concurrency, distance ≤ 12) | — | `ActionResult{action="HackStart"}` |
+| *(ProximityPrompt)* `HackPrompt` | engine `Triggered(player)` | rate key `HackPrompt` 4 / 2; then full hack validation in `MatchDirector:requestHackStart` (phase, participant, role, alive, restrained, registered terminal, concurrency (primary + one assistant), distance ≤ 12 and sight) | — | `ActionResult{action="HackStart"}` |
 
 Never accepted from clients: progress, rewards, currency, damage, health, roles, cooldown state,
 match outcome, profile data, instance references, or remote names.
@@ -38,3 +38,23 @@ match outcome, profile data, instance references, or remote names.
 | `ActionResult` | requester (private) | action, ok, code, message, extra fields |
 
 Rejection codes and their player-facing text live in `src/Shared/Network/Protocol.luau`.
+
+## Expansion remotes and payloads
+
+| Client → server | Validation and cadence |
+| --- | --- |
+| MapVoteRequest(mapId) | Exact one short known id; queued player; waiting/intermission only; votes count only selected participants; 3 burst / 0.5 per second |
+| HackChallengeRequest(matchId, terminalId, nonce, answer) | Exact four fields; short strings; nonce integer 1..1e6; answer 1..3; current Active match before deadline; primary hacker alive/in range/in sight/unrestrained; one-use server challenge/window; 3 / 1 |
+| PingRequest(matchId) | Exact short current id; living active Infiltrator; valid movement; 2 / 0.25; server derives position/context and team recipients |
+
+Ability requests also enforce the fixed class skill or gadget and movement validity. Cancel requests
+carry matchId. Portal prompts are server-created with fixed endpoints; range ≤6, sight, participant,
+alive, restraint, Active phase, current event and a per-player 4s cooldown are checked. PortalPrompt
+rate key is 2 / 0.5. Rejection replies themselves are bounded (RateNotice 2 / 0.2) during floods.
+
+MatchState adds mapId/mapName, string-user-id ballots, class ids and the current anomaly's state,
+positions and activation/expiry deadlines. PublicTerminal adds assistantUserId, difficulty and an
+optional public challenge (nonce/mode/prompt/timing; **never** answer). AbilityState and extraction
+StatusUpdate are match-scoped and stale client messages are dropped. ProfileSnapshot adds the
+owner's career/contract summary; MatchResult adds XP and progression notifications. TeamPing and
+Tracking effects are sent only to the intended team/Keeper. No new reward/claim/damage endpoint.

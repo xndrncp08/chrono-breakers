@@ -1,7 +1,7 @@
 --!strict
 -- AbilityService: validates and executes every Time-Keeper ability and Infiltrator gadget.
 --
--- Pipeline for AbilityRequest(abilityId, target?, aim?):
+-- Pipeline for AbilityRequest(abilityId, target?, aim?, matchId):
 --   1. NetworkService rate limit (per player).
 --   2. Payload shape: argument count, string id, finite Vector3 target, non-degenerate aim.
 --   3. AbilityRules.checkCaster: known id, phase, participant, role, equipped gadget, alive,
@@ -36,6 +36,7 @@ local zones: { FreezeZone.FreezeZone } = {}
 local traps: { TemporalTrap.TemporalTrap } = {}
 local currentMatchId: string? = nil
 
+local pendingScans: { { player: Player, at: number, matchId: string } } = {}
 local RUNTIME_TICK = 0.1
 local TRAP_MIN_DISTANCE_FROM_SPAWN = 18
 
@@ -64,7 +65,12 @@ local function abilityIdsFor(player: Player): { string }
 		return table.clone(AbilityConfig.KeeperAbilityOrder :: any)
 	elseif role == "Infiltrator" then
 		local gadget = deps.MatchService.GetMatchGadget(player)
-		return if gadget then { gadget } else {}
+		local ids = if gadget then { gadget } else {}
+		local skill = deps.MatchService.GetClassAbility(player)
+		if skill then
+			table.insert(ids, skill)
+		end
+		return ids
 	end
 	return {}
 end
@@ -256,7 +262,65 @@ local function castTemporalTrap(player: Player, target: any): (boolean, string)
 end
 
 local function castGadget(player: Player, abilityId: string): (boolean, string)
-	if abilityId == "Stabilizer" then
+	if abilityId == "Veil" or abilityId == "Overclock" or abilityId == "Slipstream" then
+		if abilityId == "Veil" and deps.MatchService.GetDirector():getHackingTerminal(player.UserId) then
+			return false, Protocol.Codes.Busy
+		end
+		local definition = AbilityConfig.get(abilityId) :: AbilityConfig.AbilityDefinition
+		deps.StatusEffectService.Apply(player, {
+			key = if abilityId == "Veil" then "veil" else abilityId,
+			kind = if abilityId == "Veil" then "Cloaked" elseif abilityId == "Overclock" then "Overclock" else "Haste",
+			magnitude = definition.HasteMagnitude or 1,
+			duration = definition.Duration,
+			source = abilityId,
+		})
+	elseif abilityId == "Mend" or abilityId == "EMP" then
+		local definition = AbilityConfig.get(abilityId) :: AbilityConfig.AbilityDefinition
+		local origin = getRoot(player)
+		if not origin then
+			return false, Protocol.Codes.NotAlive
+		end
+		local useful = false
+		for _, ally in deps.MatchService.GetActiveInfiltrators() do
+			local root = getRoot(ally)
+			local humanoid = ally.Character and ally.Character:FindFirstChildOfClass("Humanoid")
+			if
+				root
+				and humanoid
+				and humanoid.Health > 0
+				and (root.Position - origin.Position).Magnitude <= definition.Radius
+				and deps.WorldService.HasLineOfSight(origin.Position, root.Position)
+			then
+				if abilityId == "Mend" and humanoid.Health < humanoid.MaxHealth then
+					humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + definition.Healing)
+					useful = true
+				elseif abilityId == "EMP" then
+					deps.StatusEffectService.Cleanse(ally, { "Slow", "Stun" })
+					useful = true
+				end
+			end
+		end
+		if abilityId == "EMP" then
+			for i = #traps, 1, -1 do
+				local trap = traps[i]
+				if
+					(trap.position - origin.Position).Magnitude <= definition.Radius
+					and deps.WorldService.HasLineOfSight(origin.Position, trap.position + Vector3.new(0, 1, 0))
+				then
+					trap:destroy()
+					table.remove(traps, i)
+					useful = true
+				end
+			end
+			local keeper = deps.MatchService.GetKeeper()
+			if keeper then
+				AbilityService.SendStates(keeper)
+			end
+		end
+		if not useful then
+			return false, Protocol.Codes.NoTarget
+		end
+	elseif abilityId == "Stabilizer" then
 		local definition = AbilityConfig.Abilities.Stabilizer
 		deps.StatusEffectService.Cleanse(player, { "Slow", "Stun" })
 		deps.StatusEffectService.Apply(player, {
@@ -314,8 +378,8 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 	return true, Protocol.Codes.Ok
 end
 
-local function handleAbilityRequest(player: Player, abilityId: any, target: any, aim: any, ...: any)
-	if select("#", ...) > 0 or not Validate.isShortString(abilityId, 32) then
+local function handleAbilityRequest(player: Player, abilityId: any, target: any, aim: any, matchId: any, ...: any)
+	if select("#", ...) > 0 or not Validate.isShortString(abilityId, 32) or not Validate.isShortString(matchId, 64) then
 		deps.SecurityService.Report(player, "InvalidPayload", "AbilityRequest")
 		deps.NetworkService.Reject(player, "Ability", Protocol.Codes.InvalidPayload)
 		return
@@ -331,6 +395,10 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		return
 	end
 
+	if not deps.SecurityService.ValidatePosition(player) then
+		deps.NetworkService.Reject(player, "Ability", Protocol.Codes.OutOfRange)
+		return
+	end
 	local matchService = deps.MatchService
 	local role = matchService.GetRole(player)
 	local key = cooldownKey(player, abilityId)
@@ -339,6 +407,8 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local ok, code = AbilityRules.checkCaster({
 		abilityId = abilityId,
+		matchId = matchId,
+		currentMatchId = matchService.CurrentMatchId(),
 		phase = matchService.GetPhase(),
 		role = role,
 		participantActive = matchService.IsActiveParticipant(player),
@@ -346,6 +416,7 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		restrained = deps.StatusEffectService.IsRestrained(player),
 		cooldownReady = cooldowns:isReady(key, t),
 		equippedGadget = matchService.GetMatchGadget(player),
+		classAbility = matchService.GetClassAbility(player),
 	})
 	if not ok then
 		if code == Protocol.Codes.WrongRole or code == Protocol.Codes.WrongPhase then
@@ -366,6 +437,21 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 			direction = if root then root.CFrame.LookVector else Vector3.new(0, 0, -1)
 		end
 		success, resultCode = deps.CombatService.Strike(player, direction)
+	elseif abilityId == "ChronoScan" then
+		local currentId = matchService.CurrentMatchId()
+		if currentId then
+			table.insert(pendingScans, { player = player, at = t + definition.TelegraphDelay, matchId = currentId })
+			deps.NetworkService.Notify(
+				matchService.GetActiveInfiltrators(),
+				Protocol.NotifyKinds.Warning,
+				"Chrono Pulse charging — break line of sight, leave 48 studs, or use Veil!",
+				"Temporal",
+				definition.TelegraphDelay + 1
+			)
+			success, resultCode = true, Protocol.Codes.Ok
+		else
+			success, resultCode = false, Protocol.Codes.WrongPhase
+		end
 	elseif abilityId == "TimeFreeze" then
 		if target == nil then
 			success, resultCode = false, Protocol.Codes.InvalidPayload
@@ -392,11 +478,46 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 end
 
 local function runtimeTick()
-	if #zones == 0 and #traps == 0 then
+	if #zones == 0 and #traps == 0 and #pendingScans == 0 then
 		return
 	end
 	local t = now()
 	local participants = deps.MatchService.GetParticipants()
+	for i = #pendingScans, 1, -1 do
+		local scan = pendingScans[i]
+		if t >= scan.at then
+			table.remove(pendingScans, i)
+			local origin = getRoot(scan.player)
+			if
+				deps.MatchService.IsCurrentMatch(scan.matchId)
+				and origin
+				and deps.MatchService.IsActiveParticipant(scan.player)
+			then
+				for _, target in deps.MatchService.GetActiveInfiltrators() do
+					local root = getRoot(target)
+					if
+						root
+						and not deps.StatusEffectService.Has(target, "Cloaked")
+						and (root.Position - origin.Position).Magnitude <= AbilityConfig.Abilities.ChronoScan.Radius
+						and deps.WorldService.HasLineOfSight(origin.Position, root.Position)
+					then
+						deps.NetworkService.FireClient(RemoteNames.Effect, scan.player, {
+							kind = "Tracking",
+							userId = target.UserId,
+							duration = AbilityConfig.Abilities.ChronoScan.Duration,
+						})
+						deps.NetworkService.Notify(
+							{ target },
+							Protocol.NotifyKinds.Warning,
+							"Chrono Pulse detected you!",
+							"Danger",
+							2
+						)
+					end
+				end
+			end
+		end
+	end
 	for i = #zones, 1, -1 do
 		local zone = zones[i]
 		local wasActive = zone.state == "Active"
@@ -463,6 +584,7 @@ function AbilityService.EndMatch(_matchId: string?)
 		zone:destroy()
 	end
 	table.clear(zones)
+	table.clear(pendingScans)
 	for _, trap in traps do
 		trap:destroy()
 	end

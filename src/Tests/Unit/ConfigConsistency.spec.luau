@@ -5,6 +5,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local ServerConfig = require(game:GetService("ServerScriptService").Server.ServerConfig)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 
@@ -15,6 +16,9 @@ return function(t: any)
 			for _, spec in RemoteNames.Specs do
 				t.expect(seen[spec.Name]).toBeNil()
 				seen[spec.Name] = true
+				if spec.Direction == "ClientToServer" then
+					t.expect((ServerConfig.RateLimits :: any)[spec.Name] ~= nil).toBe(true)
+				end
 				t.expect((RemoteNames :: any)[spec.Name]).toBe(spec.Name)
 			end
 		end)
@@ -51,13 +55,24 @@ return function(t: any)
 			end
 		end)
 
+		t.it("keeps Keeper bindings distinct and leaves X free for portal prompts", function()
+			local keys: { [string]: boolean } = {}
+			for _, id in AbilityConfig.KeeperAbilityOrder do
+				local definition = AbilityConfig.get(id)
+				assert(definition, "missing ability")
+				t.expect(keys[definition.GamepadKey]).toBeNil()
+				t.expect(definition.GamepadKey == "ButtonX").toBe(false)
+				keys[definition.GamepadKey] = true
+			end
+		end)
+
 		t.it("links every gadget item to an Infiltrator ability and owns the defaults", function()
 			for _, item in ItemConfig.list() do
 				if item.Slot == "Gadget" then
 					local ability = AbilityConfig.get(item.AbilityId :: string)
 					t.expect(ability ~= nil).toBe(true)
 					t.expect((ability :: any).Role).toBe("Infiltrator")
-				else
+				elseif item.Slot == "Trail" then
 					t.expect(item.Color ~= nil).toBe(true)
 				end
 				t.expect(item.Cost >= 0).toBe(true)

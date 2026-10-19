@@ -9,3 +9,7 @@
 
 Limitations: the Lune harness has no physics, characters, networking, or DataStores. Anything that
 needs the engine is covered by the manual matrix in `docs/TEST_PLAN.md`.
+
+Production artifact check: `lune run tools/verify-build.luau build/game.rbxl` after the production
+Rojo build. This parses every shipped script and asserts tests/E2E code and LoadStringEnabled are
+absent/disabled. It does not execute gameplay in the Roblox engine.

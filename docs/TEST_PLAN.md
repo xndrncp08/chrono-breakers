@@ -1,6 +1,16 @@
 # Test Plan and Results
 
-## Automated (Lune, `./tools/test.sh`)
+## Current expansion validation
+
+Current offline results, production artifact checks and precise unrun engine/device/persistence
+procedures are in [EXPANSION_RELEASE](EXPANSION_RELEASE.md) and
+[evidence/expansion-automated.txt](evidence/expansion-automated.txt). The new optional Studio suite
+is selected with `ServerScriptService.Tests.RunExpansionE2E = true` before starting 2–5 clients.
+
+Everything below is **historical baseline evidence**. It must not be presented as execution of the
+new maps, classes, anomalies, progression or redesigned interfaces.
+
+## Historical automated baseline (Lune, `./tools/test.sh`)
 Last run 2026-10-09: **148 passed, 0 failed** (17 spec modules). Specs execute the real
 ModuleScripts from the Rojo-built `build/test.rbxl` tree. A deliberately failing canary spec was
 used once to confirm the runner reports failures with a non-zero exit code.

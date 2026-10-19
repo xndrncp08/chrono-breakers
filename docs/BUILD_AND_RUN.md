@@ -67,3 +67,14 @@ attribute) and `StarterPlayerScripts.E2EClient`. Open `build/test.rbxl` in Studi
 The summary prints as `[E2E] <mode>: N passed, M failed` and is stored in the ReplicatedStorage
 attribute `E2ESummary`. Logs of finished sessions are also in `~/Library/Logs/Roblox/*_last.log`.
 To push local edits into an open Studio without Rojo, use `tools/studio-sync.py` (see tools/README.md).
+
+## Expansion validation
+
+After the normal tests/analysis, run `rojo build default.project.json -o build/game.rbxl` then
+`lune run tools/verify-build.luau`. This inspects the built artifact for test-script leakage,
+LoadStringEnabled, required services and syntax compilation of every shipped script.
+
+For the new Studio suite, build test.project.json, open test.rbxl, set the boolean attribute
+`ServerScriptService.Tests.RunExpansionE2E=true` in edit mode and start 2–5 test clients. It is
+written but unrun in the current environment; Studio window access was denied. Exact steps and
+published DataStore/device/performance gates are in [EXPANSION_RELEASE](EXPANSION_RELEASE.md).

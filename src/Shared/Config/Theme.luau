@@ -29,6 +29,7 @@ Theme.Colors = table.freeze({
 	Warning = Color3.fromRGB(255, 196, 72),
 	Success = Color3.fromRGB(96, 240, 156),
 	Locked = Color3.fromRGB(96, 104, 128),
+	Violet = Color3.fromRGB(156, 112, 255),
 })
 
 -- World palette (Parts). Keys are referenced by MapLayout box colour tokens.
@@ -64,6 +65,13 @@ Theme.Fonts = table.freeze({
 	Heading = Enum.Font.GothamBold,
 	Body = Enum.Font.GothamMedium,
 	Mono = Enum.Font.Code,
+})
+
+Theme.Atmospheres = table.freeze({
+	["Chronos Vault"] = { Ambient = Color3.fromRGB(46, 52, 84), Fog = Color3.fromRGB(10, 14, 28), Clock = 0 },
+	["Fractured Metropolis"] = { Ambient = Color3.fromRGB(64, 42, 88), Fog = Color3.fromRGB(24, 10, 38), Clock = 20 },
+	["The Forgotten Laboratory"] = { Ambient = Color3.fromRGB(40, 72, 76), Fog = Color3.fromRGB(8, 24, 28), Clock = 1 },
+	["Temporal Nexus"] = { Ambient = Color3.fromRGB(62, 42, 104), Fog = Color3.fromRGB(20, 8, 40), Clock = 0 },
 })
 
 -- Text sizes (pixels before UIScale). Minimum body size keeps mobile readability.
@@ -114,6 +122,6 @@ Theme.Motion = table.freeze({
 })
 
 -- Minimum touch target (px) for buttons on touch devices.
-Theme.MinTouchTarget = 48
+Theme.MinTouchTarget = 60
 
 return table.freeze(Theme)

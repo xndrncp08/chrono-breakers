@@ -13,6 +13,7 @@ local RunService = game:GetService("RunService")
 local StarterGui = game:GetService("StarterGui")
 local Workspace = game:GetService("Workspace")
 
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
 local ClientState = require(script.Parent.Parent.ClientState)
@@ -33,6 +34,7 @@ type Marker = {
 }
 
 local markers: { [string]: Marker } = {}
+local teammates: { [number]: BillboardGui } = {}
 local extractionMarker: BillboardGui? = nil
 local markerFolder: Folder? = nil
 local resetDisabled = false
@@ -65,8 +67,8 @@ end
 
 local function createMarker(model: Model): Marker?
 	local id = model:GetAttribute("TerminalId")
-	local console = model:FindFirstChild("Console")
-	if type(id) ~= "string" or not console then
+	local console = model:WaitForChild("Console", 5)
+	if type(id) ~= "string" or not console or model.Parent == nil then
 		return nil
 	end
 	local gui = Create("BillboardGui", {
@@ -160,8 +162,59 @@ local function refreshMarkers()
 			marker.detail.TextColor3 = color
 		end
 	end
+	local seen: { [number]: boolean } = {}
+	local snapshot = ClientState.get("snapshot")
+	if live and role == "Infiltrator" and snapshot then
+		for _, participant in snapshot.participants do
+			if
+				participant.role ~= "Infiltrator"
+				or participant.userId == player.UserId
+				or participant.status ~= "Active"
+			then
+				continue
+			end
+			local other = Players:GetPlayerByUserId(participant.userId)
+			local character = other and other.Character
+			local allyRoot = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+			if allyRoot and humanoid then
+				seen[participant.userId] = true
+				local gui = teammates[participant.userId]
+				if not gui then
+					gui = Create("BillboardGui", {
+						Name = "Teammate",
+						Adornee = allyRoot,
+						AlwaysOnTop = true,
+						Size = UDim2.fromOffset(170, 40),
+						StudsOffsetWorldSpace = Vector3.new(0, 4.5, 0),
+						MaxDistance = 2000,
+						Parent = markerFolder,
+					}) :: BillboardGui
+					Style.text({
+						Name = "Label",
+						TextSize = Theme.TextSize.Small,
+						Size = UDim2.fromScale(1, 1),
+						XAlign = Enum.TextXAlignment.Center,
+						Parent = gui,
+					})
+					teammates[participant.userId] = gui
+				end
+				gui.Adornee = allyRoot
+				local label = gui:FindFirstChild("Label") :: TextLabel
+				local class = ClassConfig.get(participant.classId)
+				label.Text = `{participant.name} / {math.ceil(humanoid.Health)} HP`
+				label.TextColor3 = if class then class.Color else Theme.Colors.Stable
+			end
+		end
+	end
+	for userId, gui in teammates do
+		if not seen[userId] then
+			gui:Destroy()
+			teammates[userId] = nil
+		end
+	end
+
 	if extractionMarker then
-		local snapshot = ClientState.get("snapshot")
 		extractionMarker.Enabled = live and role == "Infiltrator" and snapshot ~= nil and snapshot.extractionActive
 	end
 end
@@ -176,7 +229,9 @@ local function updatePrompts()
 			if hidePrompts then
 				prompt.Enabled = false
 			else
-				prompt.Enabled = model:GetAttribute("State") == "Available"
+				prompt.Enabled = (
+					model:GetAttribute("State") == "Available" or model:GetAttribute("State") == "Hacking"
+				)
 			end
 		end
 	end
@@ -199,13 +254,17 @@ local function track(model: Instance)
 		return
 	end
 	local id = model:GetAttribute("TerminalId")
-	if type(id) ~= "string" or markers[id] then
+	if type(id) ~= "string" then
 		return
 	end
-	local marker = createMarker(model)
-	if marker then
-		markers[id] = marker
+	if markers[id] then
+		markers[id].gui:Destroy()
 	end
+	local marker = createMarker(model)
+	if not marker then
+		return
+	end
+	markers[id] = marker
 	model:GetAttributeChangedSignal("State"):Connect(updatePrompts)
 	local prompt = model:FindFirstChild("HackPrompt", true) :: ProximityPrompt?
 	if prompt then
@@ -223,6 +282,9 @@ local function createExtractionMarker()
 	local pad = vault and vault:FindFirstChild("ExtractionPad")
 	if not pad then
 		return
+	end
+	if extractionMarker then
+		extractionMarker:Destroy()
 	end
 	local gui = Create("BillboardGui", {
 		Name = "ExtractionMarker",
@@ -266,6 +328,22 @@ function InteractionController.Start()
 		track(model)
 	end
 	CollectionService:GetInstanceAddedSignal(TERMINAL_TAG):Connect(track)
+	CollectionService:GetInstanceRemovedSignal(TERMINAL_TAG):Connect(function(model: Instance)
+		local id = model:GetAttribute("TerminalId")
+		if type(id) ~= "string" then
+			return
+		end
+		local marker = markers[id]
+		if marker and marker.model == model then
+			marker.gui:Destroy()
+			markers[id] = nil
+		end
+	end)
+	Workspace.DescendantAdded:Connect(function(instance)
+		if instance.Name == "ExtractionPad" and instance:IsA("BasePart") then
+			task.defer(createExtractionMarker)
+		end
+	end)
 	task.spawn(function()
 		-- The vault is built by the server at startup; wait briefly for it to replicate.
 		local root = Workspace:WaitForChild("ChronoBreakers", 30)

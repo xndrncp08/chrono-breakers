@@ -1,8 +1,10 @@
 --!strict
--- WorldService: validates the authored map contract (fails loudly), builds the world once, and
+-- WorldService: validates every authored map contract, builds/replaces the selected world, and
 -- exposes read-only world queries (spawns, terminal positions, extraction membership, raycasts).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Lighting = game:GetService("Lighting")
+local TweenService = game:GetService("TweenService")
 local Workspace = game:GetService("Workspace")
 
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
@@ -17,6 +19,9 @@ local WorldService = {}
 
 local world: MatchWorldBuilder.BuiltWorld? = nil
 local geometryParams: RaycastParams? = nil
+local selectedId = "Vault"
+local selectedMap = MapLayout.Vault
+local lightingTween: Tween? = nil
 
 local function getWorld(): MatchWorldBuilder.BuiltWorld
 	assert(world, "WorldService used before Init")
@@ -24,9 +29,11 @@ local function getWorld(): MatchWorldBuilder.BuiltWorld
 end
 
 function WorldService.Init(_deps: { [string]: any })
-	local errors = MapValidator.validate(MapLayout.Vault, TerminalConfig.RequiredHacks)
-	if #errors > 0 then
-		error("[WorldService] map contract violated:\n  " .. table.concat(errors, "\n  "))
+	for id, map in MapLayout.Maps do
+		local errors = MapValidator.validate(map, TerminalConfig.RequiredHacks)
+		if #errors > 0 then
+			error(`[WorldService] {id}: ` .. table.concat(errors, "; "))
+		end
 	end
 	world = MatchWorldBuilder.build()
 	local params = RaycastParams.new()
@@ -36,13 +43,31 @@ function WorldService.Init(_deps: { [string]: any })
 	geometryParams = params
 end
 
+function WorldService.SelectMap(mapId: string)
+	local map = (MapLayout.Maps :: any)[mapId]
+	assert(map, "unknown map")
+	if lightingTween then
+		lightingTween:Cancel()
+		lightingTween = nil
+	end
+	selectedId, selectedMap = mapId, map
+	world = MatchWorldBuilder.build(map)
+	if geometryParams then
+		geometryParams.FilterDescendantsInstances = { getWorld().static }
+	end
+end
+
+function WorldService.GetMapId(): string
+	return selectedId
+end
+
 function WorldService.GetMap(): MapLayout.MapDefinition
-	return MapLayout.Vault
+	return selectedMap
 end
 
 function WorldService.GetTerminalSpecs(): { { id: string, name: string } }
 	local specs = {}
-	for _, terminal in MapLayout.Vault.terminals do
+	for _, terminal in selectedMap.terminals do
 		table.insert(specs, { id = terminal.id, name = terminal.name })
 	end
 	return specs
@@ -63,10 +88,14 @@ end
 
 function WorldService.GetTerminalPositions(): { Vector3 }
 	local list = {}
-	for _, terminal in MapLayout.Vault.terminals do
+	for _, terminal in selectedMap.terminals do
 		table.insert(list, terminal.position)
 	end
 	return list
+end
+
+function WorldService.GetGeometryFolder(): Folder
+	return getWorld().static
 end
 
 function WorldService.GetRuntimeFolder(): Folder
@@ -80,30 +109,41 @@ function WorldService.GetLobbySpawnCFrame(): CFrame
 end
 
 function WorldService.GetInfiltratorSpawnCFrame(index: number): CFrame
-	local spawns = MapLayout.Vault.infiltratorSpawns
+	local spawns = selectedMap.infiltratorSpawns
 	local position = spawns[((index - 1) % #spawns) + 1]
 	-- Face north toward the vault interior.
 	return CFrame.lookAt(position, position + Vector3.new(0, 0, -1))
 end
 
 function WorldService.GetKeeperSpawnCFrame(): CFrame
-	local position = MapLayout.Vault.keeperSpawn
+	local position = selectedMap.keeperSpawn
 	return CFrame.lookAt(position, position + Vector3.new(0, 0, 1))
 end
 
 function WorldService.IsInsideExtraction(position: Vector3): boolean
-	local map = MapLayout.Vault
+	local map = selectedMap
 	local half = map.extractionSize / 2
 	local d = position - map.extractionCenter
 	return math.abs(d.X) <= half.X and math.abs(d.Y) <= half.Y and math.abs(d.Z) <= half.Z
 end
 
 function WorldService.IsInsideVault(position: Vector3): boolean
-	local map = MapLayout.Vault
+	local map = selectedMap
 	return PlacementRules.isInsideBounds(position, map.boundsMin, map.boundsMax)
 end
 
 function WorldService.SetExtractionOpen(open: boolean)
+	if lightingTween then
+		lightingTween:Cancel()
+	end
+	local atmosphere = (Theme.Atmospheres :: any)[selectedMap.name]
+	lightingTween = TweenService:Create(
+		Lighting,
+		TweenInfo.new(0.8, Enum.EasingStyle.Sine, Enum.EasingDirection.InOut),
+		{ Ambient = if open then Theme.Colors.StableDim else atmosphere.Ambient }
+	)
+	local current = lightingTween :: Tween
+	current:Play()
 	local w = getWorld()
 	w.gate:SetAttribute("Open", open)
 	w.gate.CanCollide = not open
@@ -129,7 +169,7 @@ end
 -- Downward probe against static vault geometry only (characters/effects are excluded).
 function WorldService.CastDown(from: Vector3, depth: number): PlacementRules.GroundHit?
 	local result = Workspace:Raycast(from, Vector3.new(0, -depth, 0), geometryParams)
-	if result then
+	if result and result.Instance.CanCollide then
 		return { position = result.Position, normal = result.Normal }
 	end
 	return nil

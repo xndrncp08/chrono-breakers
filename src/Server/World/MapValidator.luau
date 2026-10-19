@@ -210,6 +210,29 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 		checkClear(`terminal {terminal.id} interaction point`, MapValidator.interactionPoint(terminal))
 	end
 
+	if #map.anomalySites < 2 then
+		fail("fewer than two anomaly sites")
+	end
+	for i, site in map.anomalySites do
+		if not inside(site, min, max) then
+			fail(`anomaly site {i} outside bounds`)
+		end
+		checkClear(`anomaly site {i}`, site + Vector3.new(0, 3, 0))
+		for _, terminal in map.terminals do
+			if (site - terminal.position).Magnitude < 22 then
+				fail(`anomaly site {i} too close to terminal`)
+			end
+		end
+		for _, spawn in map.infiltratorSpawns do
+			if (site - spawn).Magnitude < 22 then
+				fail(`anomaly site {i} too close to spawn`)
+			end
+		end
+		if (site - map.extractionCenter).Magnitude < 24 or (site - map.keeperSpawn).Magnitude < 22 then
+			fail(`anomaly site {i} too close to protected area`)
+		end
+	end
+
 	-- Reachability with the gate open.
 	if #map.infiltratorSpawns > 0 then
 		local openGrid = MapValidator.buildGrid(map, true)
@@ -217,6 +240,11 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 		for i, spawn in map.infiltratorSpawns do
 			if not reachable(spawn) then
 				fail(`infiltrator spawn {i} is not reachable`)
+			end
+		end
+		for i, site in map.anomalySites do
+			if not reachable(site) then
+				fail(`anomaly site {i} unreachable`)
 			end
 		end
 		if not reachable(map.keeperSpawn) then
@@ -233,6 +261,19 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 
 		local closedGrid = MapValidator.buildGrid(map, false)
 		local reachableClosed = closedGrid.reachableFrom(map.infiltratorSpawns[1])
+		for i, spawn in map.infiltratorSpawns do
+			if not reachableClosed(spawn) then
+				fail(`infiltrator spawn {i} inaccessible before extraction`)
+			end
+		end
+		for _, terminal in map.terminals do
+			if not reachableClosed(MapValidator.interactionPoint(terminal)) then
+				fail(`terminal {terminal.id} inaccessible before extraction`)
+			end
+		end
+		if not reachableClosed(map.keeperSpawn) then
+			fail("keeper inaccessible before extraction")
+		end
 		if reachableClosed(map.extractionCenter) then
 			fail("extraction pad is reachable while the gate is closed")
 		end

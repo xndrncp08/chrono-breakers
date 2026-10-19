@@ -5,6 +5,8 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 
 export type CasterContext = {
+	matchId: string?,
+	currentMatchId: string?,
 	abilityId: any, -- untrusted
 	phase: string,
 	role: string?, -- nil when not a participant
@@ -13,6 +15,7 @@ export type CasterContext = {
 	restrained: boolean,
 	cooldownReady: boolean,
 	equippedGadget: string?,
+	classAbility: string?,
 }
 
 export type StrikeCandidate = { userId: number, position: Vector3 }
@@ -30,6 +33,9 @@ function AbilityRules.checkCaster(ctx: CasterContext): (boolean, string)
 	if definition == nil then
 		return false, "InvalidPayload"
 	end
+	if ctx.currentMatchId and ctx.matchId ~= ctx.currentMatchId then
+		return false, "StaleRequest"
+	end
 	if not CASTABLE_PHASES[ctx.phase] then
 		return false, "WrongPhase"
 	end
@@ -39,7 +45,7 @@ function AbilityRules.checkCaster(ctx: CasterContext): (boolean, string)
 	if definition.Role ~= ctx.role then
 		return false, "WrongRole"
 	end
-	if ctx.role == "Infiltrator" and ctx.equippedGadget ~= ctx.abilityId then
+	if ctx.role == "Infiltrator" and ctx.equippedGadget ~= ctx.abilityId and ctx.classAbility ~= ctx.abilityId then
 		return false, "NotOwned"
 	end
 	if not ctx.participantActive or not ctx.alive then

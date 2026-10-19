@@ -8,6 +8,7 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
 
 local StatusEffects = require(script.Parent.Parent.Core.StatusEffects)
@@ -23,6 +24,7 @@ type Entry = {
 
 local entries: { [Player]: Entry } = {}
 local network: any = nil
+local deps: { [string]: any } = {}
 
 local TICK = 0.1
 
@@ -66,6 +68,9 @@ local function apply(player: Player)
 		humanoid.JumpPower = movement.jumpPower
 	end
 
+	if deps.CharacterService then
+		deps.CharacterService.SetCloaked(player, entry.effects:has("Cloaked", t))
+	end
 	local list = {}
 	for _, effect in entry.effects:list() do
 		if t < effect.expiresAt then
@@ -79,7 +84,16 @@ local function apply(player: Player)
 		tostring(movement.hasted),
 		tostring(movement.slowImmune),
 		tostring(movement.invulnerable),
-		tostring(#list),
+		table.concat(
+			(function(): { string }
+				local keys = {}
+				for _, effect in list do
+					table.insert(keys, `{effect.kind}:{effect.source}`)
+				end
+				return keys
+			end)(),
+			","
+		),
 	}, "|")
 	if signature ~= entry.lastSentSignature and network then
 		entry.lastSentSignature = signature
@@ -96,7 +110,8 @@ local function apply(player: Player)
 	end
 end
 
-function StatusEffectService.Init(deps: { [string]: any })
+function StatusEffectService.Init(injected: { [string]: any })
+	deps = injected
 	network = deps.NetworkService
 	Players.PlayerRemoving:Connect(function(player)
 		entries[player] = nil
@@ -122,7 +137,8 @@ function StatusEffectService.SetBaseline(player: Player, roleId: string?)
 	local entry = getEntry(player)
 	local role = if roleId then RoleConfig.get(roleId) else nil
 	if role then
-		entry.baseWalk = role.WalkSpeed
+		local class = if roleId == "Infiltrator" then ClassConfig.get(deps.MatchService.GetMatchClass(player)) else nil
+		entry.baseWalk = if class then class.WalkSpeed else role.WalkSpeed
 		entry.baseJump = role.JumpPower
 	else
 		entry.baseWalk = RoleConfig.Lobby.WalkSpeed
@@ -211,7 +227,7 @@ end
 function StatusEffectService.GetMaxSpeed(player: Player): number
 	local entry = getEntry(player)
 	local movement = entry.effects:compute(entry.baseWalk, entry.baseJump, now())
-	return math.max(movement.walkSpeed, entry.baseWalk)
+	return movement.walkSpeed
 end
 
 -- Re-applies the computed movement to a freshly spawned character.

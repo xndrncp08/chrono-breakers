@@ -4,6 +4,7 @@
 --   * Role reveal, results, loadout, settings, toasts/banners, and the connection overlay.
 --   * Scale = viewport-height factor (clamped for phones) × the player's UIScale setting.
 
+local GuiService = game:GetService("GuiService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local StarterGui = game:GetService("StarterGui")
@@ -12,8 +13,10 @@ local Workspace = game:GetService("Workspace")
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 
 local ClientState = require(script.Parent.Parent.ClientState)
+local CareerScreen = require(script.Parent.Parent.UI.Screens.CareerScreen)
 local ConnectionOverlay = require(script.Parent.Parent.UI.Screens.ConnectionOverlay)
 local Create = require(script.Parent.Parent.UI.Components.Create)
+local DeploymentScreen = require(script.Parent.Parent.UI.Screens.DeploymentScreen)
 local HudScreen = require(script.Parent.Parent.UI.Screens.HudScreen)
 local LoadoutScreen = require(script.Parent.Parent.UI.Screens.LoadoutScreen)
 local LobbyScreen = require(script.Parent.Parent.UI.Screens.LobbyScreen)
@@ -32,6 +35,8 @@ local toasts: Toasts.Toasts? = nil
 local lobby: any = nil
 local hud: any = nil
 local loadout: any = nil
+local deployment: any = nil
+local career: any = nil
 local settingsScreen: any = nil
 local pendingMessages: { { kind: string, text: string, severity: string?, duration: number? } } = {}
 
@@ -43,7 +48,7 @@ local function computeScale(): number
 	base = math.min(base, math.max(0.6, viewport.X / 900))
 	local settings = ClientState.get("settings")
 	local userScale = if settings and settings.UIScale then settings.UIScale else 1
-	return base * userScale
+	return if ClientState.get("inputType") == "Touch" then math.clamp(base * userScale, 0.8, 1.3) else base * userScale
 end
 
 local function applyScale()
@@ -69,6 +74,20 @@ local function route()
 		)
 	hud.SetVisible(showHud)
 	lobby.SetVisible(not showHud)
+	if
+		not showHud
+		and ClientState.get("inputType") == "Gamepad"
+		and not ClientState.get("modal")
+		and GuiService.SelectedObject == nil
+	then
+		GuiService.SelectedObject = lobby.GetDefaultSelection()
+	end
+	if live and career then
+		career.Modal:Close()
+	end
+	if live and deployment then
+		deployment.Modal:Close()
+	end
 	if live and loadout and loadout.Modal:IsOpen() then
 		loadout.Modal:Close()
 	end
@@ -129,6 +148,26 @@ function UIController.HandleActionResult(result: any)
 end
 
 function UIController.OpenModal(name: string)
+	if career then
+		career.Modal:Close()
+	end
+	if deployment then
+		deployment.Modal:Close()
+	end
+	if loadout then
+		loadout.Modal:Close()
+	end
+	if settingsScreen then
+		settingsScreen.Modal:Close()
+	end
+	if name == "Career" and career then
+		career.Open()
+		return
+	end
+	if name == "Deployment" and deployment then
+		deployment.Open()
+		return
+	end
 	if name == "Loadout" and loadout then
 		if settingsScreen then
 			settingsScreen.Modal:Close()
@@ -167,6 +206,8 @@ function UIController.Start()
 	RoleReveal.new(gui, deps)
 	ResultsScreen.new(gui, deps)
 	loadout = LoadoutScreen.new(gui, deps)
+	deployment = DeploymentScreen.new(gui)
+	career = CareerScreen.new(gui)
 	settingsScreen = SettingsScreen.new(gui, deps)
 	toasts = Toasts.new(gui)
 	for _, message in pendingMessages do
@@ -181,8 +222,9 @@ function UIController.Start()
 	ClientState.changed:Connect(function(key: string)
 		if key == "snapshot" or key == "role" then
 			route()
-		elseif key == "settings" then
+		elseif key == "settings" or key == "inputType" then
 			applyScale()
+			route()
 		end
 	end)
 	local camera = Workspace.CurrentCamera
