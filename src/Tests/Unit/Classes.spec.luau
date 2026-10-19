@@ -38,6 +38,10 @@ return function(t: any)
 		t.expect((AbilityRules.checkCaster(context))).toBe(true)
 		context.abilityId = "Stabilizer"
 		t.expect((AbilityRules.checkCaster(context))).toBe(true)
+		context.currentMatchId = "new"
+		context.matchId = "old"
+		t.expect(select(2, AbilityRules.checkCaster(context))).toBe("StaleRequest")
+		context.matchId = "new"
 		context.cooldownReady = false
 		t.expect(select(2, AbilityRules.checkCaster(context))).toBe("OnCooldown")
 	end)

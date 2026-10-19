@@ -378,8 +378,8 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 	return true, Protocol.Codes.Ok
 end
 
-local function handleAbilityRequest(player: Player, abilityId: any, target: any, aim: any, ...: any)
-	if select("#", ...) > 0 or not Validate.isShortString(abilityId, 32) then
+local function handleAbilityRequest(player: Player, abilityId: any, target: any, aim: any, matchId: any, ...: any)
+	if select("#", ...) > 0 or not Validate.isShortString(abilityId, 32) or not Validate.isShortString(matchId, 64) then
 		deps.SecurityService.Report(player, "InvalidPayload", "AbilityRequest")
 		deps.NetworkService.Reject(player, "Ability", Protocol.Codes.InvalidPayload)
 		return
@@ -395,6 +395,10 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		return
 	end
 
+	if not deps.SecurityService.ValidatePosition(player) then
+		deps.NetworkService.Reject(player, "Ability", Protocol.Codes.OutOfRange)
+		return
+	end
 	local matchService = deps.MatchService
 	local role = matchService.GetRole(player)
 	local key = cooldownKey(player, abilityId)
@@ -403,6 +407,8 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 	local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 	local ok, code = AbilityRules.checkCaster({
 		abilityId = abilityId,
+		matchId = matchId,
+		currentMatchId = matchService.CurrentMatchId(),
 		phase = matchService.GetPhase(),
 		role = role,
 		participantActive = matchService.IsActiveParticipant(player),
@@ -432,9 +438,9 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		end
 		success, resultCode = deps.CombatService.Strike(player, direction)
 	elseif abilityId == "ChronoScan" then
-		local matchId = matchService.CurrentMatchId()
-		if matchId then
-			table.insert(pendingScans, { player = player, at = t + definition.TelegraphDelay, matchId = matchId })
+		local currentId = matchService.CurrentMatchId()
+		if currentId then
+			table.insert(pendingScans, { player = player, at = t + definition.TelegraphDelay, matchId = currentId })
 			deps.NetworkService.Notify(
 				matchService.GetActiveInfiltrators(),
 				Protocol.NotifyKinds.Warning,

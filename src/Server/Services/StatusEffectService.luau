@@ -227,7 +227,7 @@ end
 function StatusEffectService.GetMaxSpeed(player: Player): number
 	local entry = getEntry(player)
 	local movement = entry.effects:compute(entry.baseWalk, entry.baseJump, now())
-	return math.max(movement.walkSpeed, entry.baseWalk)
+	return movement.walkSpeed
 end
 
 -- Re-applies the computed movement to a freshly spawned character.

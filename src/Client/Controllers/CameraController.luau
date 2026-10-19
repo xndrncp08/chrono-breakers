@@ -18,7 +18,11 @@ local function candidates(): { number }
 	if not snapshot then
 		return list
 	end
+	local me = ClientState.myParticipant()
 	for _, p in snapshot.participants do
+		if me and me.role == "Infiltrator" and p.role ~= "Infiltrator" then
+			continue
+		end
 		if p.status == "Active" and p.userId ~= player.UserId then
 			local other = Players:GetPlayerByUserId(p.userId)
 			if other and other.Character and other.Character:FindFirstChildOfClass("Humanoid") then

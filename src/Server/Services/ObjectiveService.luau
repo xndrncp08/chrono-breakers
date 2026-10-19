@@ -35,10 +35,18 @@ local function onPromptTriggered(player: Player, terminalId: string)
 	-- Success is acknowledged by MatchService when the director emits HackStarted.
 end
 
-local function handleObjectiveRequest(player: Player, action: any, ...: any)
-	if select("#", ...) > 0 or not Validate.isOneOf(action, Protocol.ObjectiveActions) then
+local function handleObjectiveRequest(player: Player, action: any, matchId: any, ...: any)
+	if
+		select("#", ...) > 0
+		or not Validate.isOneOf(action, Protocol.ObjectiveActions)
+		or not Validate.isShortString(matchId, 64)
+	then
 		deps.SecurityService.Report(player, "InvalidPayload", "ObjectiveRequest")
 		deps.NetworkService.Reject(player, "Objective", Protocol.Codes.InvalidPayload)
+		return
+	end
+	if not deps.MatchService.IsCurrentMatch(matchId) then
+		deps.NetworkService.Reject(player, "Objective", Protocol.Codes.StaleRequest)
 		return
 	end
 	if action == Protocol.ObjectiveActions.Cancel then

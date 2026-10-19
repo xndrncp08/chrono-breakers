@@ -125,7 +125,29 @@ local function onEffect(payload: any)
 	end
 	local kind = payload.kind
 	local audio = deps.AudioController
-	if kind == "Anomaly" then
+	if kind == "TeamPing" then
+		local snapshot = ClientState.get("snapshot")
+		if not snapshot or payload.matchId ~= snapshot.matchId then
+			return
+		end
+		ring(payload.position - Vector3.new(0, 2.8, 0), 5, Theme.Colors.Stable, payload.duration, true)
+		local anchor = Instance.new("Part")
+		anchor.Anchored, anchor.CanCollide, anchor.CanQuery, anchor.CanTouch = true, false, false, false
+		anchor.Transparency, anchor.Size, anchor.Position = 1, Vector3.one, payload.position
+		anchor.Parent = effectsFolder
+		local gui = Instance.new("BillboardGui")
+		gui.Size, gui.AlwaysOnTop, gui.Adornee, gui.StudsOffsetWorldSpace =
+			UDim2.fromOffset(250, 48), true, anchor, Vector3.new(0, 5, 0)
+		gui.Parent = anchor
+		local label = Instance.new("TextLabel")
+		label.Size, label.BackgroundColor3, label.BackgroundTransparency =
+			UDim2.fromScale(1, 1), Theme.Colors.Background, 0.2
+		label.Text, label.TextColor3, label.Font, label.TextSize, label.TextWrapped =
+			payload.label, Theme.Colors.Stable, Theme.Fonts.Heading, 14, true
+		label.Parent = gui
+		Debris:AddItem(anchor, payload.duration)
+		deps.UIController.Toast(payload.label, "Stable", 3)
+	elseif kind == "Anomaly" then
 		ring(payload.position, payload.radius, Theme.Colors.Warning, 3, true)
 		audio.Play("FreezeCast")
 	elseif kind == "Tracking" then
