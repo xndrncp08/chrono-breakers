@@ -155,7 +155,7 @@ local function castTimeFreeze(player: Player, target: any): (boolean, string)
 		linger = definition.LingerAfterExit,
 		startedAt = startedAt,
 		parent = deps.WorldService.GetRuntimeFolder(),
-		getTargets = deps.MatchService.GetActiveInfiltrators,
+		getTargets = deps.MatchService.GetFreeInfiltrators,
 		applySlow = function(victim: Player, key: string, magnitude: number, duration: number)
 			deps.StatusEffectService.Apply(victim, {
 				key = key,
@@ -248,7 +248,7 @@ local function castTemporalTrap(player: Player, target: any): (boolean, string)
 		lifetime = definition.Lifetime,
 		placedAt = now(),
 		parent = deps.WorldService.GetRuntimeFolder(),
-		getTargets = deps.MatchService.GetActiveInfiltrators,
+		getTargets = deps.MatchService.GetFreeInfiltrators,
 		onTriggered = onTrapTriggered,
 	})
 	table.insert(traps, trap)
@@ -280,6 +280,7 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 		if not origin then
 			return false, Protocol.Codes.NotAlive
 		end
+		local director = deps.MatchService.GetDirector()
 		local useful = false
 		for _, ally in deps.MatchService.GetActiveInfiltrators() do
 			local root = getRoot(ally)
@@ -291,11 +292,43 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 				and (root.Position - origin.Position).Magnitude <= definition.Radius
 				and deps.WorldService.HasLineOfSight(origin.Position, root.Position)
 			then
-				if abilityId == "Mend" and humanoid.Health < humanoid.MaxHealth then
-					humanoid.Health = math.min(humanoid.MaxHealth, humanoid.Health + definition.Healing)
-					useful = true
-				elseif abilityId == "EMP" then
+				if abilityId == "Mend" then
+					local healed = director:boost(ally.UserId, "Heal", definition.HealBoost, player.UserId, now())
+					local revived = director:boost(ally.UserId, "Revive", definition.ReviveBoost, player.UserId, now())
+					useful = useful or healed or revived
+				elseif abilityId == "EMP" and director:isFree(ally.UserId) then
 					deps.StatusEffectService.Cleanse(ally, { "Slow", "Stun" })
+					useful = true
+				end
+			end
+		end
+		if abilityId == "EMP" then
+			-- Counterplay to Phase-Lock: the pulse breaks the Keeper's channel and staggers them.
+			local keeper = deps.MatchService.GetKeeper()
+			local keeperRoot = if keeper then getRoot(keeper) else nil
+			if
+				keeper
+				and keeperRoot
+				and (keeperRoot.Position - origin.Position).Magnitude <= definition.Radius
+				and deps.WorldService.HasLineOfSight(origin.Position, keeperRoot.Position)
+			then
+				local action = director:getAction(keeper.UserId)
+				if action and action.kind == "Contain" then
+					director:stopAction(keeper.UserId, "Disrupted", now())
+					deps.StatusEffectService.Apply(keeper, {
+						key = "disrupted",
+						kind = "Slow",
+						magnitude = definition.KeeperSlow,
+						duration = definition.KeeperSlowDuration,
+						source = "EMP",
+					})
+					deps.NetworkService.Notify(
+						{ keeper },
+						Protocol.NotifyKinds.Warning,
+						"Phase-Lock disrupted!",
+						"Danger",
+						2
+					)
 					useful = true
 				end
 			end
@@ -417,6 +450,7 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		cooldownReady = cooldowns:isReady(key, t),
 		equippedGadget = matchService.GetMatchGadget(player),
 		classAbility = matchService.GetClassAbility(player),
+		free = role ~= "Infiltrator" or matchService.GetDirector():isFree(player.UserId),
 	})
 	if not ok then
 		if code == Protocol.Codes.WrongRole or code == Protocol.Codes.WrongPhase then
@@ -493,11 +527,12 @@ local function runtimeTick()
 				and origin
 				and deps.MatchService.IsActiveParticipant(scan.player)
 			then
-				for _, target in deps.MatchService.GetActiveInfiltrators() do
+				for _, target in deps.MatchService.GetFreeInfiltrators() do
 					local root = getRoot(target)
 					if
 						root
 						and not deps.StatusEffectService.Has(target, "Cloaked")
+						and not deps.InteractionService.IsHidden(target)
 						and (root.Position - origin.Position).Magnitude <= AbilityConfig.Abilities.ChronoScan.Radius
 						and deps.WorldService.HasLineOfSight(origin.Position, root.Position)
 					then

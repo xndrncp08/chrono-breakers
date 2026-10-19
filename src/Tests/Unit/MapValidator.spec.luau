@@ -45,8 +45,37 @@ return function(t: any)
 			end
 		end)
 
-		t.it("has exactly three distinct terminals", function()
-			t.expect(#MapLayout.Vault.terminals).toBe(3)
+		t.it("gives every map five terminals (one more than required) and full chase furniture", function()
+			for id, map in MapLayout.Maps do
+				t.expect(#map.terminals).toBe(TerminalConfig.RequiredHacks + 1)
+				local kinds: { [string]: number } = {}
+				for _, o in map.obstacles do
+					kinds[o.kind] = (kinds[o.kind] or 0) + 1
+				end
+				assert((kinds.Rail or 0) >= 3 and (kinds.Barrier or 0) >= 3, id .. " lacks loop furniture")
+				assert(#map.lockers >= 4, id .. " lacks lockers")
+			end
+		end)
+
+		t.it("flags a vault that would land inside geometry", function()
+			local map = TableUtil.deepCopy(MapLayout.Vault)
+			local rail = map.obstacles[7]
+			table.insert(map.boxes, {
+				name = "Blocker",
+				kind = "Wall",
+				center = rail.center + Vector3.new(3.5, 4, 0),
+				size = Vector3.new(2, 8, 2),
+				color = "Wall",
+				material = "Metal",
+				collide = true,
+			})
+			local found = false
+			for _, message in MapValidator.validate(map, TerminalConfig.RequiredHacks) do
+				if string.find(message, "landing", 1, true) then
+					found = true
+				end
+			end
+			t.expect(found).toBe(true)
 		end)
 
 		t.it("detects an objective sealed off by geometry", function()
@@ -116,7 +145,7 @@ return function(t: any)
 			local map = TableUtil.deepCopy(MapLayout.Vault)
 			map.terminals[2].id = map.terminals[1].id
 			t.expect(#MapValidator.validate(map, 3)).toBeGreaterThan(0)
-			t.expect(#MapValidator.validate(MapLayout.Vault, 4)).toBeGreaterThan(0)
+			t.expect(#MapValidator.validate(MapLayout.Vault, 6)).toBeGreaterThan(0)
 		end)
 	end)
 end

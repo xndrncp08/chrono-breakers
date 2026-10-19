@@ -1,71 +1,107 @@
 --!strict
--- Challenges accelerate the safe server-timed channel; failure risks saved progress.
+-- Calibration Pulses: server-issued timing checks during a hack (pure).
+-- After a short audible warning a needle sweeps a ring once; the hacker presses while it crosses the
+-- marked arc. The leading GreatFraction of the arc is a Great. The server judges a press by the
+-- claimed press time, bounded to LatencyAllowance before arrival (anything else uses arrival time),
+-- so honest latency is forgiven while a client cannot rewind further than that allowance.
+
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
+
 export type Challenge = {
 	nonce: number,
 	mode: string,
-	prompt: string,
-	answer: number,
+	startAt: number,
+	sweep: number,
+	direction: number,
+	arcStart: number,
+	arcWidth: number,
 	opensAt: number,
+	greatUntil: number,
 	closesAt: number,
 	expiresAt: number,
 	used: boolean,
 }
+
 local HackChallenge = {}
-function HackChallenge.new(mode: string, nonce: number, now: number, seed: number, difficulty: number): Challenge
-	local answer = (seed - 1) % 3 + 1
-	local prompt = ""
-	local opensAt, closesAt = now + 0.6, now + 8
-	if mode == "Sequence" then
-		prompt = `{answer} → {answer % 3 + 1} → {(answer + 1) % 3 + 1} → ?`
-	elseif mode == "Cipher" then
-		local a = seed % 2 + 1
-		local b = (answer - a - 1) % 3 + 1
-		prompt = `ROUTE ({a} + {b}) on a 1–3 cycle (4 → 1)`
-	else
+local config = SurvivalConfig.Calibration
+
+HackChallenge.SEEDS = 9 -- distinct arc placements; callers pass seed in 1..SEEDS
+
+function HackChallenge.arcWidth(mode: string, completed: number): number
+	local flavour = (config.Flavours :: any)[mode] or config.Flavours.Timing
+	local base = math.max(config.MinArc, config.BaseArc - completed * config.ArcShrinkPerTerminal)
+	return base * flavour.ArcScale
+end
+
+function HackChallenge.new(mode: string, nonce: number, now: number, seed: number, completed: number): Challenge
+	local flavour = (config.Flavours :: any)[mode]
+	if flavour == nil then
 		mode = "Timing"
-		prompt = "LOCK while the server timing window is open"
-		answer = 1
-		opensAt = now + 1.8
-		closesAt = opensAt + math.max(0.55, 1 - difficulty * 0.15)
+		flavour = config.Flavours.Timing
 	end
+	local sweep = flavour.Sweep
+	local width = HackChallenge.arcWidth(mode, completed)
+	-- Arc starts between 100° and 276° so there is always a readable lead-in.
+	local arcStart = 100 + ((seed - 1) % HackChallenge.SEEDS) * 22
+	local startAt = now + config.Warning
+	local opensAt = startAt + arcStart / 360 * sweep
+	local closesAt = opensAt + width / 360 * sweep
 	return {
 		nonce = nonce,
 		mode = mode,
-		prompt = prompt,
-		answer = answer,
+		startAt = startAt,
+		sweep = sweep,
+		direction = flavour.Direction,
+		arcStart = arcStart,
+		arcWidth = width,
 		opensAt = opensAt,
+		greatUntil = opensAt + width * config.GreatFraction / 360 * sweep,
 		closesAt = closesAt,
-		expiresAt = now + 8,
+		expiresAt = startAt + sweep + 0.25,
 		used = false,
 	}
 end
-function HackChallenge.respond(challenge: Challenge, nonce: number, answer: number, now: number): (boolean, string)
+
+-- Returns (ok, code, grade) where grade is "Great", "Good" or "Miss".
+function HackChallenge.respond(
+	challenge: Challenge,
+	nonce: number,
+	pressTime: number,
+	now: number
+): (boolean, string, string?)
 	if challenge.used or nonce ~= challenge.nonce then
-		return false, "StaleRequest"
+		return false, "StaleRequest", nil
 	end
-	if now < challenge.opensAt and challenge.mode ~= "Timing" then
-		return false, "TooEarly"
+	if now > challenge.expiresAt + config.LatencyAllowance then
+		return false, "StaleRequest", nil
 	end
-	if now >= challenge.expiresAt then
-		return false, "StaleRequest"
+	local effective = pressTime
+	if pressTime ~= pressTime or pressTime > now + 0.05 or pressTime < now - config.LatencyAllowance then
+		effective = now
 	end
 	challenge.used = true
-	if
-		answer ~= challenge.answer
-		or (challenge.mode == "Timing" and (now < challenge.opensAt or now > challenge.closesAt))
-	then
-		return false, "ChallengeFailed"
+	if effective >= challenge.opensAt and effective <= challenge.closesAt then
+		return true, "Ok", if effective <= challenge.greatUntil then "Great" else "Good"
 	end
-	return true, "Ok"
+	return false, "ChallengeFailed", "Miss"
 end
+
+function HackChallenge.isExpired(challenge: Challenge, now: number): boolean
+	return not challenge.used and now > challenge.expiresAt + config.LatencyAllowance
+end
+
 function HackChallenge.public(challenge: Challenge): any
 	return {
 		nonce = challenge.nonce,
 		mode = challenge.mode,
-		prompt = challenge.prompt,
-		opensAt = challenge.opensAt,
-		closesAt = challenge.closesAt,
-		expiresAt = challenge.expiresAt,
+		startAt = challenge.startAt,
+		sweep = challenge.sweep,
+		direction = challenge.direction,
+		arcStart = challenge.arcStart,
+		arcWidth = challenge.arcWidth,
+		greatWidth = challenge.arcWidth * config.GreatFraction,
 	}
 end
+
 return table.freeze(HackChallenge)

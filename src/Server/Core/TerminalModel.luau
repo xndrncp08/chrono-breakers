@@ -8,8 +8,9 @@
 --   Interrupted -> Available    (lockout elapsed)
 --   any         -> Locked       (match ended; lockAll) — Completed stays Completed
 --
--- One primary channel; MatchDirector owns the optional assistant slot. Duplicate primary requests return
--- "Busy" (other player) or "AlreadyHacking" (same player).
+-- One primary channel plus assistants (MatchDirector caps them). Duplicate primary requests return
+-- "Busy" (other player) or "AlreadyHacking" (same player). An Overloaded terminal regresses while
+-- nobody hacks it; starting a hack clears the overload.
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local GameTypes = require(ReplicatedStorage.Shared.Types.GameTypes)
@@ -30,7 +31,8 @@ export type TerminalModel = {
 	state: TerminalState,
 	progress: number,
 	hackerUserId: number?,
-	assistantUserId: number?,
+	assistants: { number },
+	regressing: boolean,
 	lastProgressAt: number,
 	interruptedUntil: number,
 	lastInterruptReason: string?,
@@ -45,6 +47,10 @@ export type TerminalModel = {
 	unlock: (self: TerminalModel) -> boolean,
 	lock: (self: TerminalModel) -> boolean,
 	shouldBroadcast: (self: TerminalModel, now: number, interval: number) -> boolean,
+	overload: (self: TerminalModel, instantLoss: number) -> boolean,
+	regress: (self: TerminalModel, dt: number, rate: number) -> boolean,
+	hasParticipant: (self: TerminalModel, userId: number) -> boolean,
+	removeAssistant: (self: TerminalModel, userId: number) -> boolean,
 }
 
 local TerminalModel = {}
@@ -62,7 +68,8 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		state = "Locked" :: TerminalState,
 		progress = 0,
 		hackerUserId = nil :: number?,
-		assistantUserId = nil :: number?,
+		assistants = {} :: { number },
+		regressing = false,
 		lastProgressAt = 0,
 		interruptedUntil = 0,
 		lastInterruptReason = nil :: string?,
@@ -99,6 +106,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		end
 		setState("Hacking")
 		self.hackerUserId = userId
+		self.regressing = false
 		self.lastProgressAt = now
 		self.lastInterruptReason = nil
 		self.lastBroadcastAt = -math.huge
@@ -122,7 +130,8 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 			self.progress = 1
 			self.completedBy = self.hackerUserId
 			self.hackerUserId = nil
-			self.assistantUserId = nil
+			table.clear(self.assistants)
+			self.regressing = false
 			setState("Completed")
 			return true
 		end
@@ -135,7 +144,7 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 		end
 		setState("Interrupted")
 		self.hackerUserId = nil
-		self.assistantUserId = nil
+		table.clear(self.assistants)
 		self.lastInterruptReason = reason
 		self.interruptedUntil = now + lockout
 		if not retainProgress then
@@ -165,9 +174,47 @@ function TerminalModel.new(id: string, name: string): TerminalModel
 			return false
 		end
 		self.hackerUserId = nil
-		self.assistantUserId = nil
+		table.clear(self.assistants)
+		self.regressing = false
 		self.state = "Locked"
 		return true
+	end
+
+	-- Keeper Overload: only an idle terminal with progress that is not already regressing.
+	function self:overload(instantLoss: number): boolean
+		if (self.state ~= "Available" and self.state ~= "Interrupted") or self.progress <= 0 or self.regressing then
+			return false
+		end
+		self.regressing = true
+		self.progress = math.max(0, self.progress - instantLoss)
+		self.lastBroadcastAt = -math.huge
+		return true
+	end
+
+	-- Returns true when regression stopped because progress reached zero.
+	function self:regress(dt: number, rate: number): boolean
+		if not self.regressing or self.state == "Hacking" then
+			return false
+		end
+		self.progress = math.max(0, self.progress - dt * rate)
+		if self.progress <= 0 then
+			self.regressing = false
+			return true
+		end
+		return false
+	end
+
+	function self:hasParticipant(userId: number): boolean
+		return self.hackerUserId == userId or table.find(self.assistants, userId) ~= nil
+	end
+
+	function self:removeAssistant(userId: number): boolean
+		local index = table.find(self.assistants, userId)
+		if index then
+			table.remove(self.assistants, index)
+			return true
+		end
+		return false
 	end
 
 	function self:shouldBroadcast(now: number, interval: number): boolean

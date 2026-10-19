@@ -19,6 +19,7 @@ local GameConfig = require(ReplicatedStorage.Shared.Config.GameConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
+local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 local Cleanup = require(ReplicatedStorage.Shared.Modules.Cleanup)
 local TableUtil = require(ReplicatedStorage.Shared.Modules.TableUtil)
@@ -44,19 +45,21 @@ local IN_MATCH = { Intro = true, Active = true, Extraction = true }
 local REASON_TEXT: { [string]: string } = {
 	OutOfRange = "Hack interrupted — you moved too far from the terminal.",
 	Damaged = "Hack interrupted — you were hit!",
-	Died = "Hack interrupted — you were downed.",
+	Died = "Hack interrupted.",
+	Downed = "Hack interrupted — you were Desynced.",
+	Contained = "Hack interrupted — you were Phase-Locked.",
 	Restrained = "Hack interrupted — temporal snare!",
 	Cancelled = "Hack cancelled.",
 	Disconnected = "Hack interrupted.",
 	Eliminated = "Hack interrupted — you were eliminated.",
-	ChallengeFailed = "Trace detected — progress reduced. The Keeper can see you!",
+	ChallengeFailed = "Calibration missed — progress reduced. The Keeper heard that!",
 }
 
 local RESULT_TEXT: { [string]: string } = {
 	Extracted = "The Infiltrators escaped with the Chronos tech!",
-	AllEliminated = "Every Infiltrator was caught. The vault holds.",
+	AllEliminated = "Every Infiltrator was erased. The vault holds.",
 	TimeExpired = "Time ran out. The Time-Keeper prevails.",
-	ExtractionFailed = "The breach closed with no one out.",
+	ExtractionFailed = "The timeline collapsed with no one out.",
 	KeeperLeft = "The Time-Keeper abandoned the vault.",
 	InfiltratorsLeft = "The Infiltrators abandoned the heist.",
 	Aborted = "Match aborted — not enough players.",
@@ -129,6 +132,18 @@ function MatchService.GetActiveInfiltrators(): { Player }
 					table.insert(list, player)
 				end
 			end
+		end
+	end
+	return list
+end
+
+-- Infiltrators in play who can be targeted, slowed or scanned (not Desynced or In Stasis).
+function MatchService.GetFreeInfiltrators(): { Player }
+	local list = {}
+	local d = getDirector()
+	for _, player in MatchService.GetActiveInfiltrators() do
+		if d:isFree(player.UserId) then
+			table.insert(list, player)
 		end
 	end
 	return list
@@ -441,12 +456,14 @@ end
 
 local function onExtractionOpened(payload: any)
 	deps.AnomalyService.EndMatch()
-	deps.WorldService.SetExtractionOpen(true)
+	deps.WorldService.SetExtractionOpen(payload.gateOpen == true)
 	deps.NetworkService.Notify(
 		participantsAndAll(),
 		Protocol.NotifyKinds.Announcement,
-		"EXTRACTION OPEN — reach the Breach Dock!",
-		"Success",
+		if payload.gateOpen
+			then "TEMPORAL COLLAPSE — reach the Breach Dock!"
+			else "TEMPORAL COLLAPSE — power a Gate Relay to open the Breach Gate!",
+		"Temporal",
 		5
 	)
 	deps.NetworkService.FireAll(RemoteNames.Effect, {
@@ -492,11 +509,10 @@ local function onPlayerExtracted(payload: any)
 end
 
 local function onPlayerEliminated(payload: any)
-	local byText = if payload.byUserId then ` by {displayName(payload.byUserId)}` else ""
 	deps.NetworkService.Notify(
 		participantsAndAll(),
 		Protocol.NotifyKinds.Toast,
-		`{displayName(payload.userId)} was eliminated{byText}.`,
+		`{displayName(payload.userId)} was erased from the timeline.`,
 		"Danger",
 		3
 	)
@@ -504,6 +520,17 @@ local function onPlayerEliminated(payload: any)
 		kind = Protocol.EffectKinds.PlayerEliminated,
 		userId = payload.userId,
 	})
+	-- Erasure never kills the Humanoid, so send the player back to the lobby to spectate.
+	local player = playerById(payload.userId)
+	if player and matchCleanup then
+		local matchId = payload.matchId
+		matchCleanup:Add(task.delay(2.5, function()
+			if MatchService.IsCurrentMatch(matchId) and player.Parent == Players then
+				deps.StatusEffectService.ClearAll(player)
+				deps.CharacterService.Respawn(player)
+			end
+		end))
+	end
 end
 
 local function onParticipantLeft(payload: any)
@@ -752,13 +779,16 @@ function MatchService.Init(injected: { [string]: any })
 			allowKeeperless = studioSolo,
 			cooperativeHacking = TerminalConfig.CooperativeHacking,
 			interactiveChallenges = TerminalConfig.InteractiveChallenges,
-			assistantSpeedBonus = TerminalConfig.AssistantSpeedBonus,
+			maxHackers = SurvivalConfig.Objectives.MaxHackers,
+			assistantEfficiency = SurvivalConfig.Objectives.ExtraHackerEfficiency,
+			squadScaling = SurvivalConfig.Objectives.SquadScaling :: any,
 		},
 		terminals = deps.WorldService.GetTerminalSpecs(),
 		prepareMatch = function(order: { number })
 			local id = MapVote.select(mapVotes, order, getDirector().matchesStarted - 1)
 			deps.WorldService.SelectMap(id)
 			deps.ObjectiveService.BindTerminals()
+			deps.SurvivalService.BindWorld()
 			table.clear(mapVotes)
 			return deps.WorldService.GetTerminalSpecs()
 		end,
@@ -821,6 +851,27 @@ function MatchService.Init(injected: { [string]: any })
 				local player = playerById(userId)
 				return if player then player.DisplayName else tostring(userId)
 			end,
+			distanceTo = function(userId: number, kind: string, id: any): number?
+				return deps.SurvivalService.DistanceTo(userId, kind, id)
+			end,
+			choosePod = function(userId: number, occupied: { [string]: boolean }): string?
+				return deps.SurvivalService.ChoosePod(userId, occupied)
+			end,
+			isKeeperNear = function(podId: string): boolean
+				return deps.SurvivalService.IsKeeperNear(podId)
+			end,
+			recoverySpeed = function(userId: number): number
+				return deps.SurvivalService.RecoverySpeed(userId)
+			end,
+			riftSite = function(): string?
+				return deps.SurvivalService.RiftSite()
+			end,
+			podIds = function(): { string }
+				return deps.WorldService.GetPodIds()
+			end,
+			relayIds = function(): { string }
+				return deps.WorldService.GetRelayIds()
+			end,
 		},
 	})
 	if studioSolo then
@@ -861,9 +912,11 @@ function MatchService.Start()
 			return
 		end
 		local root = getRoot(player) :: BasePart
-		local humanoid = (player.Character :: Model):FindFirstChildOfClass("Humanoid") :: Humanoid
-		local label = if humanoid.Health < humanoid.MaxHealth / 2
-			then "Needs healing"
+		local condition = d:getCondition(player.UserId)
+		local label = if condition == "Downed"
+			then "Desynced — Re-sync me!"
+			elseif condition == "Contained" then "In Stasis — rescue me!"
+			elseif condition == "Injured" then "Fractured — need a Patch"
 			elseif d:getHackingTerminal(player.UserId) then "Assist this hack"
 			else "Rally here"
 		local nearest = ""
