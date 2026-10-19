@@ -184,7 +184,7 @@ local function onTrapTriggered(trap: TemporalTrap.TemporalTrap, victim: Player)
 		key = `trap:{trap.id}:stun`,
 		kind = "Stun",
 		magnitude = 1,
-		duration = definition.StunDuration,
+		duration = definition.StunDuration * deps.PerkService.Value(deps.MatchService.GetKeeper(), "TrapStun"),
 		source = "TemporalTrap",
 	})
 	deps.StatusEffectService.Apply(victim, {
@@ -271,7 +271,8 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 			key = if abilityId == "Veil" then "veil" else abilityId,
 			kind = if abilityId == "Veil" then "Cloaked" elseif abilityId == "Overclock" then "Overclock" else "Haste",
 			magnitude = definition.HasteMagnitude or 1,
-			duration = definition.Duration,
+			duration = definition.Duration
+				* (if abilityId == "Veil" then deps.PerkService.Value(player, "VeilDuration") else 1),
 			source = abilityId,
 		})
 	elseif abilityId == "Mend" or abilityId == "EMP" then
@@ -281,6 +282,8 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 			return false, Protocol.Codes.NotAlive
 		end
 		local director = deps.MatchService.GetDirector()
+		local radius = definition.Radius
+			* (if abilityId == "EMP" then deps.PerkService.Value(player, "EmpRadius") else 1)
 		local useful = false
 		for _, ally in deps.MatchService.GetActiveInfiltrators() do
 			local root = getRoot(ally)
@@ -289,7 +292,7 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 				root
 				and humanoid
 				and humanoid.Health > 0
-				and (root.Position - origin.Position).Magnitude <= definition.Radius
+				and (root.Position - origin.Position).Magnitude <= radius
 				and deps.WorldService.HasLineOfSight(origin.Position, root.Position)
 			then
 				if abilityId == "Mend" then
@@ -309,7 +312,7 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 			if
 				keeper
 				and keeperRoot
-				and (keeperRoot.Position - origin.Position).Magnitude <= definition.Radius
+				and (keeperRoot.Position - origin.Position).Magnitude <= radius
 				and deps.WorldService.HasLineOfSight(origin.Position, keeperRoot.Position)
 			then
 				local action = director:getAction(keeper.UserId)
@@ -337,7 +340,7 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 			for i = #traps, 1, -1 do
 				local trap = traps[i]
 				if
-					(trap.position - origin.Position).Magnitude <= definition.Radius
+					(trap.position - origin.Position).Magnitude <= radius
 					and deps.WorldService.HasLineOfSight(origin.Position, trap.position + Vector3.new(0, 1, 0))
 				then
 					trap:destroy()
@@ -503,7 +506,9 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 	end
 
 	if success then
-		cooldowns:start(key, t, definition.Cooldown)
+		local cooldown = definition.Cooldown
+			* (if abilityId == "Slipstream" then deps.PerkService.Value(player, "SlipstreamCooldown") else 1)
+		cooldowns:start(key, t, cooldown)
 		deps.NetworkService.Accept(player, "Ability", { abilityId = abilityId, result = resultCode })
 	else
 		deps.NetworkService.Reject(player, "Ability", resultCode)

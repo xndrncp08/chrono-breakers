@@ -22,8 +22,9 @@ export type StaminaModel = {
 local StaminaModel = {}
 local config = SurvivalConfig.Stamina
 
-function StaminaModel.new(maxMultiplier: number?): StaminaModel
+function StaminaModel.new(maxMultiplier: number?, regenMultiplier: number?): StaminaModel
 	local max = config.Max * math.clamp(maxMultiplier or 1, 0.5, 2)
+	local regen = config.RegenPerSecond * math.clamp(regenMultiplier or 1, 0.5, 2)
 	local lastDrainAt = -math.huge
 	local self = {
 		value = max,
@@ -48,7 +49,7 @@ function StaminaModel.new(maxMultiplier: number?): StaminaModel
 				sprint = false
 			end
 		elseif now - lastDrainAt >= config.RegenDelay then
-			self.value = math.min(self.max, self.value + config.RegenPerSecond * dt)
+			self.value = math.min(self.max, self.value + regen * dt)
 			if self.exhausted and self.value >= config.RecoverThreshold * self.max / config.Max then
 				self.exhausted = false
 			end

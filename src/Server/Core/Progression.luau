@@ -58,7 +58,11 @@ function Progression.apply(profile: ProfileSchema.Profile, award: Award): (numbe
 		table.insert(notifications, `Level {level} reached`)
 	end
 	for id, definition in Config.Milestones :: any do
-		local value = if definition.Stat == "Level" then level else (profile.Stats :: any)[definition.Stat] or 0
+		local masteryId = string.match(definition.Stat, "^Mastery:(.+)$")
+		local value = if definition.Stat == "Level"
+			then level
+			elseif masteryId then Config.level(progress.Mastery[masteryId] or 0)
+			else (profile.Stats :: any)[definition.Stat] or 0
 		if value >= definition.Target and not progress.Milestones[id] then
 			progress.Milestones[id] = true
 			profile.OwnedItems[definition.Item] = true

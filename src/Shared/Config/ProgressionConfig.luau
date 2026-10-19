@@ -3,12 +3,42 @@ local Config = {}
 Config.MaxXP = 1000000000
 Config.LevelStep = 125
 Config.MaxLevel = 100
-Config.XP = table.freeze({ Participation = 80, Win = 60, Hack = 25, Assist = 15, Elimination = 30, Extraction = 40 })
+Config.XP = table.freeze({
+	Participation = 80,
+	Win = 60,
+	Hack = 25,
+	Assist = 15,
+	Elimination = 30,
+	Extraction = 40,
+	Rescue = 30,
+	Resync = 20,
+	Patch = 10,
+	Great = 5,
+	Down = 10,
+	Containment = 15,
+})
 Config.Daily = table.freeze({
 	{ Id = "Deploy", Name = "Complete two heists", Stat = "MatchesPlayed", Target = 2, Scrap = 30, XP = 100 },
 	{ Id = "Breach", Name = "Breach three terminals", Stat = "TerminalsHacked", Target = 3, Scrap = 40, XP = 150 },
 	{ Id = "Escape", Name = "Extract once", Stat = "Extractions", Target = 1, Scrap = 35, XP = 120 },
 	{ Id = "Teamwork", Name = "Assist two terminal breaches", Stat = "HackAssists", Target = 2, Scrap = 35, XP = 120 },
+	{ Id = "Rescuer", Name = "Rescue two allies from Stasis", Stat = "Rescues", Target = 2, Scrap = 40, XP = 150 },
+	{
+		Id = "Calibrated",
+		Name = "Land five Great calibrations",
+		Stat = "GreatCalibrations",
+		Target = 5,
+		Scrap = 30,
+		XP = 110,
+	},
+	{
+		Id = "Lockdown",
+		Name = "Phase-Lock three Infiltrators",
+		Stat = "Containments",
+		Target = 3,
+		Scrap = 40,
+		XP = 150,
+	},
 })
 Config.Weekly = table.freeze({
 	{ Id = "Veteran", Name = "Complete ten heists", Stat = "MatchesPlayed", Target = 10, Scrap = 150, XP = 500 },
@@ -22,13 +52,31 @@ Config.Weekly = table.freeze({
 	},
 	{ Id = "Warden", Name = "Catch eight Infiltrators", Stat = "Eliminations", Target = 8, Scrap = 180, XP = 600 },
 	{ Id = "Victories", Name = "Win six heists", Stat = "Wins", Target = 6, Scrap = 160, XP = 550 },
+	{ Id = "Guardian", Name = "Re-sync eight allies", Stat = "Resyncs", Target = 8, Scrap = 170, XP = 600 },
+	{
+		Id = "Jailer",
+		Name = "Phase-Lock twelve Infiltrators",
+		Stat = "Containments",
+		Target = 12,
+		Scrap = 180,
+		XP = 600,
+	},
 })
-Config.Milestones = table.freeze({
+-- Stat "Level" uses account level; "Mastery:<id>" uses that class's (or the Keeper's) mastery level.
+local milestones: { [string]: any } = {
 	FirstEscape = { Name = "Timeline Breaker", Stat = "Extractions", Target = 1, Item = "TitleBreaker" },
 	VaultWarden = { Name = "Vault Warden", Stat = "KeeperWins", Target = 5, Item = "TitleWarden" },
 	Veteran = { Name = "Temporal Veteran", Stat = "MatchesPlayed", Target = 20, Item = "TitleVeteran" },
 	RiftWalker = { Name = "Rift Walker", Stat = "Level", Target = 10, Item = "TrailRift" },
-})
+	Lifeline = { Name = "Lifeline", Stat = "Rescues", Target = 10, Item = "TitleLifeline" },
+}
+-- Mastery rewards: a title at mastery 5 and a signature trail at mastery 10 for every role.
+Config.MasteryRoles = table.freeze({ "Ghost", "Engineer", "ChronoMedic", "Phantom", "Disruptor", "TimeKeeper" })
+for _, id in Config.MasteryRoles do
+	milestones[`{id}Adept`] = { Name = `{id} Adept`, Stat = `Mastery:{id}`, Target = 5, Item = `Title{id}Adept` }
+	milestones[`{id}Signature`] = { Name = `{id} Signature`, Stat = `Mastery:{id}`, Target = 10, Item = `Trail{id}` }
+end
+Config.Milestones = table.freeze(milestones)
 function Config.level(xp: number): number
 	return math.clamp(
 		1 + math.floor((math.sqrt(1 + 8 * math.max(0, xp) / Config.LevelStep) - 1) / 2),

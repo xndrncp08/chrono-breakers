@@ -30,6 +30,7 @@ local ORDER = {
 	"SurvivalService",
 	"InteractionService",
 	"HuntService",
+	"PerkService",
 	"AnomalyService",
 	"RewardService",
 }

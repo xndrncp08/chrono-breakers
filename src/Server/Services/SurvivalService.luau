@@ -117,10 +117,12 @@ function SurvivalService.IsKeeperNear(podId: string): boolean
 	return pod ~= nil and keeper ~= nil and horizontal(keeper.Position, pod.position) <= containment.CampRadius
 end
 
-function SurvivalService.RecoverySpeed(userId: number): number
+-- Helper speed for pooled actions: class passive x perk modifier.
+function SurvivalService.ActionSpeed(userId: number, kind: string): number
 	local player = playerById(userId)
 	local class = if player then ClassConfig.get(deps.MatchService.GetMatchClass(player)) else nil
-	return if class then class.HealSpeed else 1
+	local base = if not class then 1 elseif kind == "Relay" then class.HackSpeed else class.HealSpeed
+	return base * deps.PerkService.ValueFor(userId, kind)
 end
 
 -- The rift opens at the anomaly site farthest from the Keeper.
@@ -221,7 +223,7 @@ local function onCondition(payload: any)
 			key = "surge",
 			kind = "Haste",
 			magnitude = strike.SurgeHaste,
-			duration = strike.SurgeDuration,
+			duration = strike.SurgeDuration * deps.PerkService.Value(player, "SurgeDuration"),
 			source = "Surge",
 		})
 		if payload.cause == "Endured" then
@@ -303,6 +305,15 @@ local function onRescued(payload: any)
 		})
 		mirrorHealth(player, "Injured")
 		refreshPrompts(player)
+	end
+	local keeper = deps.MatchService.GetKeeper()
+	local rescuer = playerById(payload.by)
+	if keeper and rescuer and deps.PerkService.Has(keeper, "RevealRescuer") then
+		deps.NetworkService.FireClient(
+			RemoteNames.Effect,
+			keeper,
+			{ kind = "Tracking", userId = rescuer.UserId, duration = 4 }
+		)
 	end
 	local text = if payload.cause == "Feedback"
 		then `Temporal feedback freed {nameOf(payload.userId)}!`

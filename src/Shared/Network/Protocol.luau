@@ -5,7 +5,7 @@ local Protocol = {}
 
 Protocol.QueueActions = table.freeze({ Join = "Join", Leave = "Leave" })
 Protocol.ObjectiveActions = table.freeze({ Cancel = "Cancel" })
-Protocol.ShopActions = table.freeze({ Purchase = "Purchase", Equip = "Equip" })
+Protocol.ShopActions = table.freeze({ Purchase = "Purchase", Equip = "Equip", TogglePerk = "TogglePerk" })
 
 Protocol.NotifyKinds = table.freeze({
 	Toast = "Toast", -- small transient message

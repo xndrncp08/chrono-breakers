@@ -166,6 +166,15 @@ local function performVault(player: Player, handle: any, duration: number, isKee
 			character:SetAttribute("Vaulting", nil)
 			deps.SecurityService.ResetMovement(player)
 			release(player, token)
+			if not isKeeper and deps.PerkService.Has(player, "LandingHaste") then
+				deps.StatusEffectService.Apply(player, {
+					key = "featherFall",
+					kind = "Haste",
+					magnitude = 0.3,
+					duration = 0.8,
+					source = "FeatherFall",
+				})
+			end
 			if objects:recordVault(spec.id, isKeeper, now()) then
 				deps.NetworkService.Notify(
 					deps.MatchService.GetParticipants(),
@@ -205,7 +214,10 @@ local function requestVault(player: Player, id: string)
 	local class = if isKeeper then nil else classOf(player)
 	local duration = if isKeeper
 		then config.KeeperVaultTime
-		else config.VaultTime / (if class then class.VaultSpeed else 1)
+		else config.VaultTime / ((if class then class.VaultSpeed else 1) * deps.PerkService.Value(
+			player,
+			"VaultSpeed"
+		))
 	performVault(player, handle, duration, isKeeper)
 end
 
@@ -253,7 +265,9 @@ local function requestDrop(player: Player, id: string)
 			end
 			if other == keeper then
 				local class = classOf(player)
-				local stun = config.BarrierStun * (if class then class.BarrierStunScale else 1)
+				local stun = config.BarrierStun
+					* (if class then class.BarrierStunScale else 1)
+					* deps.PerkService.Value(player, "BarrierStun")
 				deps.StatusEffectService.Apply(other, {
 					key = "barrierStun",
 					kind = "Stun",
@@ -408,8 +422,9 @@ local function requestHide(player: Player, id: string)
 	deps.MatchService.GetDirector():stopAction(player.UserId, "Hiding", now())
 	local token = claim(player, "Hide")
 	local matchId = deps.MatchService.CurrentMatchId()
-	channelSlow(player, config.LockerEnterTime)
-	task.delay(config.LockerEnterTime, function()
+	local enterTime = config.LockerEnterTime * deps.PerkService.Value(player, "LockerEnter")
+	channelSlow(player, enterTime)
+	task.delay(enterTime, function()
 		release(player, token)
 		if
 			not deps.MatchService.IsCurrentMatch(matchId)

@@ -4,6 +4,7 @@
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local PerkConfig = require(ReplicatedStorage.Shared.Config.PerkConfig)
 local ProgressionConfig = require(ReplicatedStorage.Shared.Config.ProgressionConfig)
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
 local RewardConfig = require(ReplicatedStorage.Shared.Config.RewardConfig)
@@ -28,6 +29,12 @@ export type Stats = {
 	HackAssists: number,
 	KeeperWins: number,
 	InfiltratorMatches: number,
+	Rescues: number,
+	Resyncs: number,
+	Patches: number,
+	Containments: number,
+	Downs: number,
+	GreatCalibrations: number,
 }
 
 export type ChallengePeriod = { Period: number, Progress: { [string]: number }, Claimed: { [string]: boolean } }
@@ -47,11 +54,13 @@ export type Profile = {
 	Settings: Settings,
 	RecentMatchIds: { string },
 	Progression: Progression,
+	-- Perk loadouts: class id or "TimeKeeper" -> up to PerkConfig.Slots perk ids.
+	Perks: { [string]: { string } },
 }
 
 local ProfileSchema = {}
 
-ProfileSchema.CURRENT_VERSION = 3
+ProfileSchema.CURRENT_VERSION = 4
 
 ProfileSchema.STAT_KEYS = table.freeze({
 	"MatchesPlayed",
@@ -64,7 +73,20 @@ ProfileSchema.STAT_KEYS = table.freeze({
 	"HackAssists",
 	"KeeperWins",
 	"InfiltratorMatches",
+	"Rescues",
+	"Resyncs",
+	"Patches",
+	"Containments",
+	"Downs",
+	"GreatCalibrations",
 })
+
+-- Every perk loadout key a profile may hold.
+ProfileSchema.LOADOUT_KEYS = table.freeze((function(): { string }
+	local keys = table.clone(ClassConfig.Order :: any) :: { string }
+	table.insert(keys, "TimeKeeper")
+	return keys
+end)())
 
 -- Setting validators: key -> { kind, min, max, default }
 ProfileSchema.SETTINGS = table.freeze({
@@ -114,6 +136,7 @@ function ProfileSchema.defaults(): Profile
 			Daily = { Period = -1, Progress = {}, Claimed = {} },
 			Weekly = { Period = -1, Progress = {}, Claimed = {} },
 		},
+		Perks = {},
 	}
 end
 
@@ -166,6 +189,13 @@ ProfileSchema.MIGRATIONS = table.freeze({
 	end,
 	[2] = function(data: { [string]: any })
 		data.SchemaVersion = 3
+	end,
+	-- v4 (Survival Protocol): perk loadouts and survival stats. Absent fields take safe defaults.
+	[3] = function(data: { [string]: any })
+		if type(data.Perks) ~= "table" then
+			data.Perks = {}
+		end
+		data.SchemaVersion = 4
 	end,
 } :: { [number]: (data: { [string]: any }) -> () })
 
@@ -291,7 +321,37 @@ function ProfileSchema.reconcile(raw: { [string]: any }): Profile
 		end
 	end
 
+	-- Perks are reconciled after progression so unlocks are judged on sanitised values.
+	if type(raw.Perks) == "table" then
+		local progress = { xp = profile.Progression.XP, mastery = profile.Progression.Mastery }
+		for _, key in ProfileSchema.LOADOUT_KEYS do
+			local source = raw.Perks[key]
+			if type(source) == "table" then
+				local list: { string } = {}
+				for _, id in source do
+					local definition = if type(id) == "string" then PerkConfig.get(id) else nil
+					if
+						definition
+						and #list < PerkConfig.Slots
+						and not table.find(list, id)
+						and PerkConfig.isUnlocked(definition, key, progress)
+					then
+						table.insert(list, id)
+					end
+				end
+				if #list > 0 then
+					profile.Perks[key] = list
+				end
+			end
+		end
+	end
+
 	return profile
+end
+
+-- Loadout key used when this profile plays as `role`.
+function ProfileSchema.loadoutKey(profile: Profile, role: string): string
+	return if role == "TimeKeeper" then "TimeKeeper" else profile.Equipped.Class or "Ghost"
 end
 
 return table.freeze(ProfileSchema)
