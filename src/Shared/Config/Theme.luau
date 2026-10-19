@@ -45,6 +45,19 @@ Theme.World = table.freeze({
 	Gate = Color3.fromRGB(255, 72, 196),
 	TerminalBody = Color3.fromRGB(30, 36, 56),
 	ExtractionPad = Color3.fromRGB(96, 240, 156),
+	PodGlass = Color3.fromRGB(150, 120, 255),
+	PodFrame = Color3.fromRGB(34, 30, 58),
+	Rift = Color3.fromRGB(196, 150, 255),
+})
+
+-- Integrity ladder colours (HUD cards, markers, pods).
+Theme.ConditionColors = table.freeze({
+	Healthy = Color3.fromRGB(96, 240, 156),
+	Injured = Color3.fromRGB(255, 196, 72),
+	Downed = Color3.fromRGB(255, 84, 84),
+	Contained = Color3.fromRGB(156, 112, 255),
+	Eliminated = Color3.fromRGB(104, 118, 152),
+	Extracted = Color3.fromRGB(64, 232, 255),
 })
 
 Theme.TerminalStateColors = table.freeze({

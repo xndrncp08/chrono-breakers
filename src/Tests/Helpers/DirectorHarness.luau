@@ -49,6 +49,9 @@ export type Harness = {
 	eligible: { [number]: boolean },
 	distance: { [number]: { [string]: number } },
 	inZone: { [number]: boolean },
+	far: { [number]: boolean },
+	camped: { [string]: boolean },
+	selfHeal: { [number]: boolean },
 	advance: (self: Harness, seconds: number, step: number?) -> (),
 	count: (self: Harness, name: string) -> number,
 	last: (self: Harness, name: string) -> any,
@@ -69,6 +72,9 @@ function Harness.new(overrides: { [string]: any }?): Harness
 		eligible = {},
 		distance = {},
 		inZone = {},
+		far = {}, -- users whose survival interactions are out of range
+		camped = {}, -- podId -> Keeper camping
+		selfHeal = {},
 	} :: any
 
 	local idCounter = 0
@@ -103,6 +109,28 @@ function Harness.new(overrides: { [string]: any }?): Harness
 			end,
 			getName = function(userId: number)
 				return `Player{userId}`
+			end,
+			distanceTo = function(userId: number, kind: string, id: any)
+				if self.far[userId] or (kind == "Player" and self.far[id]) then
+					return 50
+				end
+				return 3
+			end,
+			isKeeperNear = function(podId: string)
+				return self.camped[podId] == true
+			end,
+			canSelfHeal = function(userId: number)
+				return self.selfHeal[userId] == true
+			end,
+			podIds = function()
+				return { "P1", "P2", "P3", "P4" }
+			end,
+			relayIds = function()
+				-- Relays are opt-in so the legacy suites keep an open gate at extraction.
+				return if overrides and overrides.relays then { "R1", "R2" } else {}
+			end,
+			riftSite = function()
+				return "Site1"
 			end,
 		},
 	})

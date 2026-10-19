@@ -1,0 +1,261 @@
+--!strict
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
+local Harness = require(ServerScriptService.Tests.Helpers.DirectorHarness)
+local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
+
+local function condition(h: any, userId: number): string?
+	return h.director:getCondition(userId)
+end
+
+local function down(h: any, userId: number)
+	local keeper = h:keeper()
+	h.director:strike(userId, keeper, h.now)
+	h.director:strike(userId, keeper, h.now)
+end
+
+return function(t: any)
+	t.describe("Survival Protocol", function()
+		t.it("moves one integrity step per strike, interrupts hacks and credits Desyncs", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local a = h:infiltrators()[1]
+			h:placeAt(a, "T1")
+			h.director:requestHackStart(a, "T1", h.now)
+			t.expect(h.director:strike(a, h:keeper(), h.now)).toBe("Injured")
+			t.expect(h:last("HackInterrupted").reason).toBe("Damaged")
+			t.expect(h:last("ConditionChanged").condition).toBe("Injured")
+			t.expect(h.director:strike(a, h:keeper(), h.now)).toBe("Downed")
+			t.expect(h.director:strike(a, h:keeper(), h.now)).toBe("Ignored")
+			t.expect((h.director:getParticipant(h:keeper()) :: any).downs).toBe(1)
+			-- Desynced players cannot hack or act.
+			h:advance(2)
+			t.expect(select(2, h.director:requestHackStart(a, "T1", h.now))).toBe("NotAlive")
+			t.expect(select(2, h.director:beginAction(a, "Revive", h:infiltrators()[2], h.now))).toBe("NotAlive")
+			local public = h.director:snapshot().participants
+			for _, p in public do
+				if p.userId == a then
+					t.expect(p.condition).toBe("Downed")
+					t.expect(p.bleedoutAt).toBeGreaterThan(h.now)
+				end
+			end
+		end)
+
+		t.it("re-syncs with pooled helpers, keeps progress when a helper walks away", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3, 4 })
+			local team = h:infiltrators()
+			local a, b, c = team[1], team[2], team[3]
+			down(h, a)
+			t.expect((h.director:beginAction(b, "Revive", a, h.now))).toBe(true)
+			t.expect(select(2, h.director:beginAction(b, "Revive", a, h.now))).toBe("Busy")
+			h:advance(4)
+			h.far[b] = true
+			h:advance(0.2)
+			t.expect(h:last("ActionEnded").reason).toBe("OutOfRange")
+			local vital = (h.director.session :: any).survival:get(a)
+			t.expect(vital.revive).toBeNear(4 / SurvivalConfig.Integrity.ReviveTime, 0.03)
+			h.far[b] = false
+			h.director:beginAction(b, "Revive", a, h.now)
+			h.director:beginAction(c, "Revive", a, h.now)
+			-- Remaining 0.5 of progress at 1.8x pooled speed.
+			h:advance(0.5 * SurvivalConfig.Integrity.ReviveTime / 1.8 + 0.2)
+			t.expect(condition(h, a)).toBe("Injured")
+			t.expect((h.director:getParticipant(b) :: any).revives).toBe(1)
+			t.expect((h.director:getParticipant(c) :: any).revives).toBe(1)
+			t.expect(h.director:getAction(b)).toBeNil()
+		end)
+
+		t.it("Patches allies but only self-heals with the protocol", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			h.director:strike(a, h:keeper(), h.now)
+			t.expect(select(2, h.director:beginAction(a, "Heal", a, h.now))).toBe("UnknownTarget")
+			h.selfHeal[a] = true
+			t.expect((h.director:beginAction(a, "Heal", a, h.now))).toBe(true)
+			t.expect((h.director:beginAction(b, "Heal", a, h.now))).toBe(true)
+			h:advance(SurvivalConfig.Integrity.HealTime)
+			t.expect(condition(h, a)).toBe("Healthy")
+			t.expect((h.director:getParticipant(b) :: any).heals).toBe(1)
+		end)
+
+		t.it("lets only the Keeper Phase-Lock, in range, into a pod; rescue returns them with Endurance", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local keeper = h:keeper()
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			down(h, a)
+			t.expect(select(2, h.director:beginAction(b, "Contain", a, h.now))).toBe("WrongRole")
+			h.far[keeper] = true
+			t.expect(select(2, h.director:beginAction(keeper, "Contain", a, h.now))).toBe("OutOfRange")
+			h.far[keeper] = false
+			t.expect((h.director:beginAction(keeper, "Contain", a, h.now))).toBe(true)
+			h:advance(SurvivalConfig.Containment.ContainTime + 0.1)
+			t.expect(condition(h, a)).toBe("Contained")
+			local contained = h:last("PlayerContained")
+			t.expect(contained.podId).toBe("P1")
+			t.expect(contained.stage).toBe(1)
+			t.expect((h.director:getParticipant(keeper) :: any).containments).toBe(1)
+			t.expect((h.director:beginAction(b, "Rescue", a, h.now))).toBe(true)
+			h:advance(SurvivalConfig.Containment.RescueTime + 0.1)
+			t.expect(condition(h, a)).toBe("Injured")
+			t.expect(h:last("PlayerRescued").by).toBe(b)
+			t.expect((h.director:getParticipant(b) :: any).rescues).toBe(1)
+			t.expect(h.director:strike(a, keeper, h.now)).toBe("Endured")
+			t.expect(condition(h, a)).toBe("Injured")
+		end)
+
+		t.it("interrupts a Phase-Lock when the target is re-synced or the Keeper is hit by a barrier", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local keeper = h:keeper()
+			local a = h:infiltrators()[1]
+			down(h, a)
+			h.director:beginAction(keeper, "Contain", a, h.now)
+			h.restrained[keeper] = true
+			h:advance(0.2)
+			t.expect(h:last("ActionEnded").reason).toBe("Restrained")
+			t.expect(condition(h, a)).toBe("Downed")
+		end)
+
+		t.it("erases when the pod timer expires and slows the timer while the Keeper camps", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local keeper = h:keeper()
+			local a = h:infiltrators()[1]
+			down(h, a)
+			h.director:beginAction(keeper, "Contain", a, h.now)
+			h:advance(1.1)
+			h.camped.P1 = true
+			h:advance(SurvivalConfig.Containment.CampReleaseTime - 1)
+			t.expect(condition(h, a)).toBe("Contained")
+			h:advance(1.2)
+			t.expect(condition(h, a)).toBe("Injured")
+			t.expect(h:last("PlayerRescued").cause).toBe("Feedback")
+			h.camped.P1 = false
+			down(h, a)
+			h.director:beginAction(keeper, "Contain", a, h.now)
+			h:advance(1.1)
+			t.expect(h:last("PlayerContained").stage).toBe(2)
+			h:advance(SurvivalConfig.Containment.StageDurations[2] + 0.5)
+			t.expect((h.director:getParticipant(a) :: any).status).toBe("Eliminated")
+			t.expect(h:last("PlayerEliminated").byUserId).toBe(keeper)
+			t.expect(h.director:getPhase()).toBe("Active")
+		end)
+
+		t.it("auto Phase-Locks after bleeding out so slugging gains nothing", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local a = h:infiltrators()[1]
+			down(h, a)
+			h:advance(SurvivalConfig.Integrity.BleedoutTime + 0.2)
+			t.expect(condition(h, a)).toBe("Contained")
+			t.expect(h:last("ConditionChanged").cause).toBe("BledOut")
+		end)
+
+		t.it("ends the match immediately when no Infiltrator is left free", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			down(h, a)
+			t.expect(h.director:getPhase()).toBe("Active")
+			down(h, b)
+			t.expect(h.director:getPhase()).toBe("Resolving")
+			local result = h:last("MatchResolved")
+			t.expect(result.winner).toBe("TimeKeeper")
+			t.expect(result.reason).toBe("AllEliminated")
+			t.expect(result.participants[h:keeper()].eliminations).toBe(2)
+		end)
+
+		t.it("opens one Slip Rift for the last Infiltrator; escaping it wins", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			h.director:eliminate(a, h:keeper(), h.now)
+			h:advance(0.2)
+			t.expect(h:last("RiftOpened").site).toBe("Site1")
+			t.expect((h.director:snapshot() :: any).rift.site).toBe("Site1")
+			t.expect((h.director:beginAction(b, "Rift", "Site1", h.now))).toBe(true)
+			h:advance(SurvivalConfig.Endgame.RiftChannel + 0.2)
+			t.expect((h.director:getParticipant(b) :: any).status).toBe("Extracted")
+			t.expect(h:last("MatchResolved").winner).toBe("Infiltrators")
+		end)
+
+		t.it("lets the Keeper seal the rift, which starts the collapse early", function()
+			local h = Harness.new({ relays = true })
+			h:startMatch({ 1, 2, 3 })
+			local a = h:infiltrators()[1]
+			h.director:eliminate(a, h:keeper(), h.now)
+			h:advance(0.2)
+			t.expect((h.director:beginAction(h:keeper(), "Rift", "Site1", h.now))).toBe(true)
+			h:advance(SurvivalConfig.Endgame.RiftSealTime + 0.2)
+			t.expect(h:count("RiftSealed")).toBe(1)
+			t.expect(h.director:getPhase()).toBe("Extraction")
+			t.expect((h.director:snapshot() :: any).collapse.gateOpen).toBe(false)
+		end)
+
+		t.it("requires a powered relay before the pad extracts, then erases stragglers at collapse", function()
+			local h = Harness.new({ relays = true, extractionWindow = 40 })
+			h:startMatch({ 1, 2, 3 })
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			h:hack(a, "T1")
+			h:hack(a, "T2")
+			h:hack(a, "T3")
+			t.expect(h.director:getPhase()).toBe("Extraction")
+			h.inZone[a] = true
+			h:advance(4)
+			t.expect((h.director:getParticipant(a) :: any).status).toBe("Active")
+			t.expect((h.director:beginAction(b, "Relay", "R1", h.now))).toBe(true)
+			t.expect(select(2, h.director:beginAction(h:keeper(), "Relay", "R1", h.now))).toBe("WrongRole")
+			h:advance(SurvivalConfig.Endgame.RelayTime + 0.2)
+			t.expect(h:count("GateOpened")).toBe(1)
+			h:advance(3.5)
+			t.expect((h.director:getParticipant(a) :: any).status).toBe("Extracted")
+			h:advance(24)
+			local result = h:last("MatchResolved")
+			t.expect(result.participants[b].status).toBe("Eliminated")
+			t.expect(result.participants[a].status).toBe("Extracted")
+			t.expect(result.winner).toBe("Infiltrators")
+		end)
+
+		t.it("lets the Keeper Overload idle terminals so they regress until resumed", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3 })
+			local keeper = h:keeper()
+			local a = h:infiltrators()[1]
+			h:placeAt(a, "T1")
+			t.expect(select(2, h.director:beginAction(keeper, "Overload", "T1", h.now))).toBe("Locked")
+			h.director:requestHackStart(a, "T1", h.now)
+			h:advance(6)
+			t.expect(select(2, h.director:beginAction(keeper, "Overload", "T1", h.now))).toBe("Busy")
+			h.director:cancelHack(a, "Cancelled", h.now)
+			h:advance(2)
+			t.expect((h.director:beginAction(keeper, "Overload", "T1", h.now))).toBe(true)
+			h:advance(SurvivalConfig.Objectives.OverloadTime + 0.1)
+			t.expect(h:count("TerminalOverloaded")).toBe(1)
+			local terminal = (h.director.session :: any).terminals.T1
+			t.expect(terminal.regressing).toBe(true)
+			local before = terminal.progress
+			h:advance(10)
+			t.expect(terminal.progress).toBeNear(before - 10 * SurvivalConfig.Objectives.RegressionPerSecond, 0.002)
+			h.director:requestHackStart(a, "T1", h.now)
+			t.expect(terminal.regressing).toBe(false)
+		end)
+
+		t.it("frees the pod and abandons rescues when a captive disconnects", function()
+			local h = Harness.new()
+			h:startMatch({ 1, 2, 3, 4 })
+			local keeper = h:keeper()
+			local a, b = h:infiltrators()[1], h:infiltrators()[2]
+			down(h, a)
+			h.director:beginAction(keeper, "Contain", a, h.now)
+			h:advance(1.1)
+			h.director:beginAction(b, "Rescue", a, h.now)
+			h.director:playerRemoving(a, h.now)
+			t.expect(h.director:getAction(b)).toBeNil()
+			t.expect((h.director.session :: any).survival.pods.P1).toBeNil()
+			t.expect(h.director:getPhase()).toBe("Active")
+		end)
+	end)
+end

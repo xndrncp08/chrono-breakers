@@ -8,6 +8,8 @@ local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 local ServerConfig = require(game:GetService("ServerScriptService").Server.ServerConfig)
 local RoleConfig = require(ReplicatedStorage.Shared.Config.RoleConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
+local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
 
 return function(t: any)
 	t.describe("Configuration consistency", function()
@@ -33,16 +35,33 @@ return function(t: any)
 
 		t.it("keeps the design-contract defaults from the brief", function()
 			t.expect(GameConfig.MatchDuration).toBe(600)
-			t.expect(GameConfig.ExtractionWindow).toBe(60)
+			t.expect(GameConfig.ExtractionWindow).toBe(SurvivalConfig.Endgame.CollapseDuration)
 			t.expect(GameConfig.MaxPlayers).toBe(5)
-			t.expect(TerminalConfig.RequiredHacks).toBe(3)
-			t.expect(TerminalConfig.HackDuration).toBe(15)
+			t.expect(TerminalConfig.RequiredHacks).toBe(4)
+			t.expect(TerminalConfig.HackDuration).toBe(40)
 			t.expect(TerminalConfig.MaxInteractionDistance).toBe(12)
 			t.expect(TerminalConfig.PromptActivationDistance <= TerminalConfig.MaxInteractionDistance).toBe(true)
 			local freeze = AbilityConfig.Abilities.TimeFreeze
 			t.expect(freeze.Duration).toBe(10)
 			t.expect(freeze.Radius * 2).toBe(30)
 			t.expect(freeze.SlowMagnitude).toBe(0.7)
+		end)
+
+		t.it("keeps the pursuit speed ladder fair: Keeper > runner, sprinter > Keeper, crawl is slow", function()
+			local keeper = RoleConfig.Roles.TimeKeeper.WalkSpeed
+			local sprint = 1 + SurvivalConfig.Stamina.SprintHaste
+			for id, class in ClassConfig.Classes do
+				assert(keeper > class.WalkSpeed * 1.08, id .. " outruns the Keeper without sprinting")
+				assert(class.WalkSpeed * sprint > keeper, id .. " cannot gain ground while sprinting")
+				assert(class.WalkSpeed * (1 - SurvivalConfig.Integrity.CrawlSlow) < 4, id .. " crawls too fast")
+			end
+			-- Even full Hunt Momentum never makes an Infiltrator's sprint pointless.
+			t.expect(keeper * (1 + SurvivalConfig.Chase.MomentumMax) < 15 * sprint + 0.5).toBe(true)
+			local scaling = SurvivalConfig.Objectives.SquadScaling
+			t.expect(#scaling).toBe(4)
+			for i = 2, #scaling do
+				t.expect(scaling[i] > scaling[i - 1]).toBe(true)
+			end
 		end)
 
 		t.it("gives every role ability a definition with the matching role", function()

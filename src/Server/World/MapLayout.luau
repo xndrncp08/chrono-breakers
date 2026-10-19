@@ -35,8 +35,31 @@ export type TerminalSpec = {
 	facing: Vector3, -- unit vector pointing from the console toward the hacker's side
 }
 
+-- Survival fixtures: Stasis Pods (rescue from the facing side), Gate Relay consoles and Phase
+-- Lockers (entered from the facing side).
+export type Fixture = {
+	id: string,
+	position: Vector3, -- floor-level centre (pods) or console centre (relays)
+	facing: Vector3, -- unit vector toward the side players interact from
+}
+
+-- Chase furniture. Rails and dropped barriers are vaulted across their thin axis; doors fill a wall
+-- gap. `axis` is the long direction ("X" or "Z"); `center` is at floor level.
+export type ObstacleKind = "Rail" | "Barrier" | "Door"
+export type Obstacle = {
+	id: string,
+	kind: ObstacleKind,
+	center: Vector3,
+	axis: string,
+	length: number,
+}
+
 export type MapDefinition = {
 	name: string,
+	pods: { Fixture },
+	relays: { Fixture },
+	lockers: { Fixture },
+	obstacles: { Obstacle },
 	anomalySites: { Vector3 },
 	boundsMin: Vector3,
 	boundsMax: Vector3,
@@ -166,6 +189,14 @@ local function wallZ(boxes: { Box }, name: string, x: number, z1: number, z2: nu
 			)
 		)
 	end
+end
+
+local function fixture(id: string, x: number, y: number, z: number, fx: number, fz: number): Fixture
+	return { id = id, position = Vector3.new(x, y, z), facing = Vector3.new(fx, 0, fz).Unit }
+end
+
+local function obstacle(kind: ObstacleKind, id: string, x: number, z: number, axis: string, length: number): Obstacle
+	return { id = id, kind = kind, center = Vector3.new(x, 0, z), axis = axis, length = length }
 end
 
 local function cover(
@@ -298,6 +329,44 @@ local function buildVault(): MapDefinition
 
 	return {
 		name = "Chronos Vault",
+		pods = {
+			fixture("P1", -40, 0, 24, 1, 0),
+			fixture("P2", 40, 0, -24, -1, 0),
+			fixture("P3", -72, 0, -46, 0, 1),
+			fixture("P4", 78, 0, 64, -1, 0),
+		},
+		relays = {
+			fixture("R1", -87, 2.5, 40, 1, 0),
+			fixture("R2", 87, 2.5, 56, -1, 0),
+		},
+		lockers = {
+			fixture("L1", -88.7, 0, -45, 1, 0),
+			fixture("L2", 78, 0, -88.7, 0, 1),
+			fixture("L3", -30, 0, -33.7, 0, 1),
+			fixture("L4", -88.7, 0, 82, 1, 0),
+			fixture("L5", 88.7, 0, 74, -1, 0),
+			fixture("L6", 30, 0, 33.7, 0, -1),
+		},
+		obstacles = {
+			-- Stasis Barriers in doorways: dropping one forces the Keeper round or through it.
+			obstacle("Barrier", "B1", -46, -35, "X", 10),
+			obstacle("Barrier", "B2", 46, -35, "X", 10),
+			obstacle("Barrier", "B3", -46, 35, "X", 10),
+			obstacle("Barrier", "B4", 72, 35, "X", 10),
+			obstacle("Barrier", "B5", -30, -62, "Z", 10),
+			obstacle("Barrier", "B6", 30, 56, "Z", 10),
+			-- Breach Rails: vault windows that turn cover into loops.
+			obstacle("Rail", "V1", -55, 1, "Z", 8),
+			obstacle("Rail", "V2", 55, -1, "Z", 8),
+			obstacle("Rail", "V3", -64, -70, "X", 14),
+			obstacle("Rail", "V4", -57, -54, "X", 14),
+			obstacle("Rail", "V5", -45, 63, "Z", 8),
+			obstacle("Rail", "V6", 70, -62, "Z", 8),
+			-- Blast Doors break sight lines between rooms.
+			obstacle("Door", "D1", -14, -35, "X", 10),
+			obstacle("Door", "D2", 30, -62, "Z", 10),
+			obstacle("Door", "D3", -30, 56, "Z", 10),
+		},
 		anomalySites = {
 			Vector3.new(-16, 0, -16),
 			Vector3.new(16, 0, 16),
@@ -333,6 +402,18 @@ local function buildVault(): MapDefinition
 				name = "Observatory Terminal",
 				position = Vector3.new(62, 2.5, 87),
 				facing = Vector3.new(0, 0, -1),
+			},
+			{
+				id = "WestTerminal",
+				name = "West Hall Terminal",
+				position = Vector3.new(-87, 2.5, -10),
+				facing = Vector3.new(1, 0, 0),
+			},
+			{
+				id = "EastTerminal",
+				name = "East Hall Terminal",
+				position = Vector3.new(87, 2.5, 14),
+				facing = Vector3.new(-1, 0, 0),
 			},
 		},
 		extractionCenter = Vector3.new(0, 5, 81),
@@ -401,7 +482,47 @@ end
 
 MapLayout.Vault = buildVault()
 -- Authored alternatives share the perimeter and sealed extraction contract, with distinct routes.
-local function buildAlternative(id: string, name: string, structures: { { any } }): MapDefinition
+-- A loop "jungle gym": two walls meeting at a corner, a rail window in one wall and a barrier slot
+-- between the other wall and a pillar. `turns` rotates the module by 90° steps around its centre.
+local function gym(boxes: { Box }, obstacles: { Obstacle }, id: string, cx: number, cz: number, turns: number)
+	local function rotate(x: number, z: number): (number, number)
+		for _ = 1, turns % 4 do
+			x, z = -z, x
+		end
+		return cx + x, cz + z
+	end
+	local function axisOf(axis: string): string
+		return if turns % 2 == 0 then axis elseif axis == "X" then "Z" else "X"
+	end
+	local function wall(name: string, x: number, z: number, sx: number, sz: number)
+		local wx, wz = rotate(x, z)
+		local size = if turns % 2 == 0 then Vector3.new(sx, 9, sz) else Vector3.new(sz, 9, sx)
+		table.insert(boxes, box(`{id}_{name}`, "Cover", Vector3.new(wx, 4.5, wz), size, "Cover", "Metal"))
+	end
+	wall("WallA1", -4, -6, 4, 1.5)
+	wall("WallA2", 4, -6, 4, 1.5)
+	wall("WallB", 6, 0, 1.5, 12)
+	wall("Pillar", -2, 6, 2, 2)
+	local rx, rz = rotate(0, -6)
+	table.insert(obstacles, obstacle("Rail", `{id}V`, rx, rz, axisOf("X"), 4))
+	local bx, bz = rotate(2.1, 6)
+	table.insert(obstacles, obstacle("Barrier", `{id}B`, bx, bz, axisOf("X"), 6.2))
+end
+
+export type AlternativeExtras = {
+	pods: { Fixture },
+	lockers: { Fixture },
+	gyms: { { number } }, -- { x, z, turns }
+	fifthTerminal: string,
+	westTerminal: string,
+}
+
+local function buildAlternative(
+	id: string,
+	name: string,
+	structures: { { any } },
+	extras: AlternativeExtras
+): MapDefinition
 	local original = MapLayout.Vault
 	local boxes: { Box } = {
 		box("Floor", "Floor", Vector3.new(0, -1, 0), Vector3.new(184, 2, 184), "Floor", "Slate"),
@@ -413,6 +534,10 @@ local function buildAlternative(id: string, name: string, structures: { { any } 
 	wallX(boxes, "DockSeal", 70, -90, 90, { { center = 0, width = 14 } })
 	for _, entry in structures do
 		cover(boxes, entry[1], entry[2], entry[3], entry[4], entry[5], entry[6], entry[7])
+	end
+	local obstacles: { Obstacle } = {}
+	for index, entry in extras.gyms do
+		gym(boxes, obstacles, `G{index}`, entry[1], entry[2], entry[3])
 	end
 	for _, x in { -32, 32 } do
 		table.insert(
@@ -426,6 +551,10 @@ local function buildAlternative(id: string, name: string, structures: { { any } 
 	map.infiltratorSpawns =
 		{ Vector3.new(-76, 3, 50), Vector3.new(-66, 3, 50), Vector3.new(-76, 3, 60), Vector3.new(-66, 3, 60) }
 	map.extractionSize = Vector3.new(24, 12, 16)
+	map.pods = extras.pods
+	map.lockers = extras.lockers
+	map.obstacles = obstacles
+	map.relays = { fixture("R1", -87, 2.5, 30, 1, 0), fixture("R2", 87, 2.5, 30, -1, 0) }
 	map.terminals = {
 		{
 			id = "ArchiveTerminal",
@@ -454,6 +583,18 @@ local function buildAlternative(id: string, name: string, structures: { { any } 
 			position = Vector3.new(72, 2.5, 56),
 			facing = Vector3.new(-1, 0, 0),
 		},
+		{
+			id = "WestTerminal",
+			name = extras.westTerminal,
+			position = Vector3.new(-87, 2.5, -5),
+			facing = Vector3.new(1, 0, 0),
+		},
+		{
+			id = "EastTerminal",
+			name = extras.fifthTerminal,
+			position = Vector3.new(20, 2.5, 68),
+			facing = Vector3.new(0, 0, -1),
+		},
 	}
 	map.landmarks = {
 		{ name = "West Wing", position = Vector3.new(-60, 0, -50) },
@@ -475,6 +616,22 @@ MapLayout.Maps = {
 		{ "Tram", 0, 16, 10, 8, 22, "Pillar" },
 		{ "TaxiWest", -22, -8, 6, 4, 10 },
 		{ "TaxiEast", 24, 44, 6, 4, 10 },
+	}, {
+		pods = {
+			fixture("P1", -30, 0, -60, 1, 0),
+			fixture("P2", 30, 0, -2, -1, 0),
+			fixture("P3", -30, 0, 45, 1, 0),
+			fixture("P4", 78, 0, -70, -1, 0),
+		},
+		lockers = {
+			fixture("L1", -88.7, 0, -10, 1, 0),
+			fixture("L2", 88.7, 0, 10, -1, 0),
+			fixture("L3", 0, 0, -34.7, 0, 1),
+			fixture("L4", -55, 0, 9.7, 0, -1),
+		},
+		gyms = { { 25, -70, 0 }, { -30, 15, 1 }, { 45, 58, 2 } },
+		westTerminal = "Overpass Relay",
+		fifthTerminal = "Harbor Uplink",
 	}),
 	Laboratory = buildAlternative("Laboratory", "The Forgotten Laboratory", {
 		{ "WestResearchWing", -38, -20, 2, 18, 68, "Wall" },
@@ -486,6 +643,22 @@ MapLayout.Maps = {
 		{ "EastBench", 60, 28, 18, 4, 6 },
 		{ "ControlDesk", 0, -48, 18, 4, 6 },
 		{ "IsolationScreen", 0, 40, 18, 9, 2 },
+	}, {
+		pods = {
+			fixture("P1", -20, 0, -70, 1, 0),
+			fixture("P2", 20, 0, 20, 1, 0),
+			fixture("P3", -75, 0, 0, 1, 0),
+			fixture("P4", 55, 0, -75, -1, 0),
+		},
+		lockers = {
+			fixture("L1", -34.7, 0, -40, 1, 0),
+			fixture("L2", 34.7, 0, -40, -1, 0),
+			fixture("L3", -88.7, 0, -60, 1, 0),
+			fixture("L4", 88.7, 0, 10, -1, 0),
+		},
+		gyms = { { -20, -25, 3 }, { 20, -30, 1 }, { 55, 50, 2 } },
+		westTerminal = "Cryo Ledger",
+		fifthTerminal = "Quarantine Console",
 	}),
 	Nexus = buildAlternative("Nexus", "Temporal Nexus", {
 		{ "FracturedCore", 0, 0, 18, 24, 18, "Danger" },
@@ -497,10 +670,30 @@ MapLayout.Maps = {
 		{ "EastFracture", 58, 0, 24, 8, 2, "Cover" },
 		{ "NorthFracture", 0, -50, 20, 8, 2, "Cover" },
 		{ "SouthFracture", 0, 50, 20, 8, 2, "Cover" },
+	}, {
+		pods = {
+			fixture("P1", -25, 0, -25, 1, 0),
+			fixture("P2", 25, 0, 25, -1, 0),
+			fixture("P3", -70, 0, -50, 1, 0),
+			fixture("P4", 70, 0, -20, -1, 0),
+		},
+		lockers = {
+			fixture("L1", 0, 0, -47.7, 0, 1),
+			fixture("L2", 0, 0, 47.7, 0, -1),
+			fixture("L3", -88.7, 0, 30, 1, 0),
+			fixture("L4", 88.7, 0, 40, -1, 0),
+		},
+		gyms = { { -25, 25, 0 }, { 25, -25, 2 }, { -60, -20, 1 } },
+		westTerminal = "Echo Anchor",
+		fifthTerminal = "Paradox Anchor",
 	}),
 } :: { [string]: MapDefinition }
 
 MapLayout.Lobby = buildLobby()
 MapLayout.WALL_HEIGHT = WALL_HEIGHT
+MapLayout.POD_SIZE = Vector3.new(5, 8, 5)
+MapLayout.LOCKER_SIZE = Vector3.new(3.4, 7.5, 2.6)
+MapLayout.OBSTACLE_HEIGHT = 3.2 -- rails and dropped barriers: above a hop, below a vault
+MapLayout.OBSTACLE_THICKNESS = 1.2
 
 return MapLayout

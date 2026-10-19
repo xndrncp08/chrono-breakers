@@ -69,7 +69,10 @@ local function apply(player: Player)
 	end
 
 	if deps.CharacterService then
-		deps.CharacterService.SetCloaked(player, entry.effects:has("Cloaked", t))
+		deps.CharacterService.SetCloaked(
+			player,
+			entry.effects:has("Cloaked", t) or deps.InteractionService.IsHidden(player)
+		)
 	end
 	local list = {}
 	for _, effect in entry.effects:list() do
@@ -84,6 +87,7 @@ local function apply(player: Player)
 		tostring(movement.hasted),
 		tostring(movement.slowImmune),
 		tostring(movement.invulnerable),
+		tostring(movement.crawling),
 		table.concat(
 			(function(): { string }
 				local keys = {}
@@ -105,6 +109,7 @@ local function apply(player: Player)
 			hasted = movement.hasted,
 			slowImmune = movement.slowImmune,
 			invulnerable = movement.invulnerable,
+			crawling = movement.crawling,
 			effects = list,
 		})
 	end
@@ -208,6 +213,21 @@ end
 function StatusEffectService.Has(player: Player, kind: StatusEffects.EffectKind): boolean
 	local entry = entries[player]
 	return entry ~= nil and entry.effects:has(kind, now())
+end
+
+-- True when an active effect of `kind` came from one of `sources` (ability combos).
+function StatusEffectService.HasSource(player: Player, kind: StatusEffects.EffectKind, sources: { string }): boolean
+	local entry = entries[player]
+	if not entry then
+		return false
+	end
+	local t = now()
+	for _, effect in entry.effects:list() do
+		if effect.kind == kind and t < effect.expiresAt and table.find(sources, effect.source) then
+			return true
+		end
+	end
+	return false
 end
 
 function StatusEffectService.IsRestrained(player: Player): boolean

@@ -18,7 +18,9 @@ local MapValidator = {}
 
 MapValidator.CELL = 1
 MapValidator.CHARACTER_RADIUS = 1.5
-MapValidator.MAX_STEP_HEIGHT = 5 -- boxes whose top is at/below this are treated as jumpable
+-- Boxes whose top is at/below this are treated as walkable: match jumps are a small hop
+-- (SurvivalConfig.Movement.MatchJumpPower), so anything taller needs a route or a vault.
+MapValidator.MAX_STEP_HEIGHT = 2.2
 MapValidator.INTERACTION_OFFSET = 4
 MapValidator.MIN_TERMINAL_SPACING = 40
 
@@ -49,9 +51,71 @@ local function blocksWalking(b: Box, floorY: number, gateOpen: boolean): boolean
 	return top - floorY > MapValidator.MAX_STEP_HEIGHT
 end
 
-function MapValidator.interactionPoint(terminal: MapLayout.TerminalSpec): Vector3
+function MapValidator.interactionPoint(terminal: MapLayout.TerminalSpec | MapLayout.Fixture): Vector3
 	local p = terminal.position + terminal.facing * MapValidator.INTERACTION_OFFSET
 	return Vector3.new(p.X, 3, p.Z)
+end
+
+-- Stasis Pods are solid; this is the box every geometry check uses for them.
+function MapValidator.podBox(pod: MapLayout.Fixture): Box
+	return {
+		name = `StasisPod_{pod.id}`,
+		kind = "Cover",
+		center = pod.position + Vector3.new(0, MapLayout.POD_SIZE.Y / 2, 0),
+		size = MapLayout.POD_SIZE,
+		color = "Cover",
+		material = "Glass",
+		collide = true,
+	}
+end
+
+function MapValidator.lockerBox(locker: MapLayout.Fixture): Box
+	local size = MapLayout.LOCKER_SIZE
+	local along = if math.abs(locker.facing.X) > 0.5 then Vector3.new(size.Z, size.Y, size.X) else size
+	return {
+		name = `PhaseLocker_{locker.id}`,
+		kind = "Cover",
+		center = locker.position + Vector3.new(0, size.Y / 2, 0),
+		size = along,
+		color = "Cover",
+		material = "Metal",
+		collide = true,
+	}
+end
+
+-- The solid box of a Rail, a dropped Barrier or a closed Door.
+function MapValidator.obstacleBox(o: MapLayout.Obstacle): Box
+	local height = if o.kind == "Door" then MapLayout.WALL_HEIGHT else MapLayout.OBSTACLE_HEIGHT
+	local thick = MapLayout.OBSTACLE_THICKNESS
+	return {
+		name = `{o.kind}_{o.id}`,
+		kind = "Cover",
+		center = o.center + Vector3.new(0, height / 2, 0),
+		size = if o.axis == "X" then Vector3.new(o.length, height, thick) else Vector3.new(thick, height, o.length),
+		color = "Cover",
+		material = "Metal",
+		collide = true,
+	}
+end
+
+-- Geometry that is always solid. Rails are solid but vaultable, so they are excluded from walking
+-- reachability; doors and barriers are passable by default (open / standing).
+local function solidBoxes(map: MapDefinition, includeRails: boolean?): { Box }
+	local boxes = table.clone(map.boxes)
+	for _, pod in map.pods do
+		table.insert(boxes, MapValidator.podBox(pod))
+	end
+	for _, locker in map.lockers do
+		table.insert(boxes, MapValidator.lockerBox(locker))
+	end
+	if includeRails then
+		for _, o in map.obstacles do
+			if o.kind == "Rail" then
+				table.insert(boxes, MapValidator.obstacleBox(o))
+			end
+		end
+	end
+	return boxes
 end
 
 export type Grid = {
@@ -68,7 +132,7 @@ function MapValidator.buildGrid(map: MapDefinition, gateOpen: boolean): Grid
 	local blocked: { [number]: boolean } = {}
 
 	local boxes: { Box } = {}
-	for _, b in map.boxes do
+	for _, b in solidBoxes(map) do
 		if blocksWalking(b, map.floorY, gateOpen) then
 			table.insert(boxes, b)
 		end
@@ -195,7 +259,7 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 
 	-- Points must not be embedded in solid geometry.
 	local function checkClear(label: string, point: Vector3)
-		for _, b in map.boxes do
+		for _, b in solidBoxes(map, true) do
 			if b.collide and b.kind ~= "Floor" and b.kind ~= "Platform" and pointInBox(point, b, 0.5) then
 				fail(`{label} is inside solid geometry '{b.name}'`)
 				return
@@ -208,6 +272,46 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 	checkClear("keeper spawn", map.keeperSpawn)
 	for _, terminal in map.terminals do
 		checkClear(`terminal {terminal.id} interaction point`, MapValidator.interactionPoint(terminal))
+	end
+
+	local pods, relays, lockers = map.pods, map.relays, map.lockers
+	if #pods < 4 then
+		fail(`only {#pods} stasis pods; 4 required`)
+	end
+	for _, o in map.obstacles do
+		if not inside(o.center, min, max) then
+			fail(`obstacle {o.id} outside bounds`)
+		end
+		if o.axis ~= "X" and o.axis ~= "Z" then
+			fail(`obstacle {o.id} has an invalid axis`)
+		end
+		-- Both landing points of a vault must be open floor.
+		if o.kind ~= "Door" then
+			local normal = if o.axis == "X" then Vector3.new(0, 0, 1) else Vector3.new(1, 0, 0)
+			for _, side in { 1, -1 } do
+				checkClear(`obstacle {o.id} landing`, o.center + normal * side * 3.5 + Vector3.new(0, 3, 0))
+			end
+		end
+	end
+	for _, list in { pods, relays, lockers } do
+		local ids: { [string]: boolean } = {}
+		for _, item in list do
+			if ids[item.id] then
+				fail(`duplicate fixture id {item.id}`)
+			end
+			ids[item.id] = true
+			if not inside(item.position, min, max) then
+				fail(`fixture {item.id} outside bounds`)
+			end
+			checkClear(`fixture {item.id} interaction point`, MapValidator.interactionPoint(item))
+		end
+	end
+	for i, pod in pods do
+		for j = i + 1, #pods do
+			if (pod.position - pods[j].position).Magnitude < 30 then
+				fail(`pods {pod.id} and {pods[j].id} are closer than 30 studs`)
+			end
+		end
 	end
 
 	if #map.anomalySites < 2 then
@@ -257,6 +361,21 @@ function MapValidator.validate(map: MapDefinition, requiredHacks: number): { str
 		end
 		if not reachable(map.extractionCenter) then
 			fail("extraction pad is not reachable with the gate open")
+		end
+		for _, item in pods do
+			if not reachable(MapValidator.interactionPoint(item)) then
+				fail(`pod {item.id} is not reachable`)
+			end
+		end
+		for _, item in relays do
+			if not reachable(MapValidator.interactionPoint(item)) then
+				fail(`relay {item.id} is not reachable`)
+			end
+		end
+		for _, item in lockers do
+			if not reachable(MapValidator.interactionPoint(item)) then
+				fail(`locker {item.id} is not reachable`)
+			end
 		end
 
 		local closedGrid = MapValidator.buildGrid(map, false)

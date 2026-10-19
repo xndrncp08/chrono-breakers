@@ -15,7 +15,7 @@ local GameConfig = {
 	IntermissionDuration = 15,
 	IntroDuration = 8,
 	MatchDuration = 600,
-	ExtractionWindow = 60,
+	ExtractionWindow = 120, -- the Temporal Collapse (SurvivalConfig.Endgame.CollapseDuration)
 	ResultsDuration = 12,
 	ReturnToLobbyDuration = 3,
 

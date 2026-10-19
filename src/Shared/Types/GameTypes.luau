@@ -30,12 +30,26 @@ export type ResolutionReason =
 	| "Aborted" -- match could not continue (e.g. everyone left)
 
 -- Public per-participant info broadcast to all clients.
+-- Integrity ladder (SurvivalConfig): Healthy/Injured are free; Downed/Contained are not.
+export type Condition = "Healthy" | "Injured" | "Downed" | "Contained"
+
 export type PublicParticipant = {
 	classId: string?,
 	userId: number,
 	name: string,
 	role: Role,
 	status: ParticipantStatus,
+	condition: Condition?,
+	stage: number?, -- times contained
+	heal: number?, -- Patch progress 0..1
+	revive: number?, -- Re-sync progress 0..1
+	bleedoutAt: number?,
+	podId: string?,
+	podRemaining: number?,
+	podDuration: number?,
+	feedback: number?, -- anti-camp feedback 0..1
+	enduranceUntil: number?,
+	action: string?, -- current survival channel
 }
 
 export type PublicTerminal = {
@@ -44,8 +58,9 @@ export type PublicTerminal = {
 	state: TerminalState,
 	progress: number, -- 0..1, presentation only
 	hackerUserId: number?,
-	assistantUserId: number?,
-	challenge: any?,
+	assistants: { number }?,
+	regressing: boolean?,
+	mode: string?,
 	difficulty: number?,
 }
 
@@ -72,6 +87,8 @@ export type MatchSnapshot = {
 	participants: { PublicParticipant },
 	terminals: { PublicTerminal },
 	extractionActive: boolean,
+	collapse: { endsAt: number?, gateOpen: boolean, relays: { [string]: number }, tier: string }?,
+	rift: { site: string? }?,
 	queueCount: number,
 	minPlayers: number,
 	maxPlayers: number,

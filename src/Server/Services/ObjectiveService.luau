@@ -50,7 +50,10 @@ local function handleObjectiveRequest(player: Player, action: any, matchId: any,
 		return
 	end
 	if action == Protocol.ObjectiveActions.Cancel then
-		if not deps.MatchService.CancelHack(player, "Cancelled") then
+		-- One cancel input covers hacks and every survival channel.
+		local cancelledHack = deps.MatchService.CancelHack(player, "Cancelled")
+		local cancelledAction = deps.SurvivalService.StopAction(player, "Cancelled")
+		if not cancelledHack and not cancelledAction then
 			deps.NetworkService.Reject(player, "Objective", Protocol.Codes.UnknownTarget)
 		end
 	end
@@ -65,13 +68,14 @@ function ObjectiveService.BindTerminals()
 	end
 end
 
+-- `answer` is the client's synchronised press time for its pending Calibration Pulse.
 local function handleChallenge(player: Player, matchId: any, terminalId: any, nonce: any, answer: any, ...: any)
 	if
 		select("#", ...) > 0
 		or not Validate.isShortString(matchId, 64)
 		or not Validate.isShortString(terminalId, 32)
 		or not Validate.isInteger(nonce, 1, 1000000)
-		or not Validate.isInteger(answer, 1, 3)
+		or not Validate.isFiniteNumber(answer)
 	then
 		deps.SecurityService.Report(player, "InvalidPayload", "HackChallenge")
 		deps.NetworkService.Reject(player, "Challenge", Protocol.Codes.InvalidPayload)
@@ -95,12 +99,21 @@ function ObjectiveService.Start()
 end
 
 -- Mirrors one authoritative terminal snapshot onto its world visuals.
-function ObjectiveService.OnTerminalChanged(terminal: { id: string, state: string })
+function ObjectiveService.OnTerminalChanged(
+	terminal: { id: string, state: string, progress: number, regressing: boolean? }
+)
 	deps.WorldService.SetTerminalVisual(
 		terminal.id,
 		terminal.state,
 		terminal.state == "Available" or terminal.state == "Hacking"
 	)
+	local handle = deps.WorldService.GetTerminal(terminal.id)
+	if handle then
+		handle.overloadPrompt.Enabled = (terminal.state == "Available" or terminal.state == "Interrupted")
+			and terminal.progress > 0
+			and not terminal.regressing
+		handle.model:SetAttribute("Regressing", terminal.regressing == true)
+	end
 end
 
 function ObjectiveService.ResetVisuals()

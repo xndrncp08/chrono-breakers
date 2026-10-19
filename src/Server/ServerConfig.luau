@@ -7,6 +7,7 @@ local ServerConfig = {}
 ServerConfig.RateLimits = table.freeze({
 	HackChallengeRequest = table.freeze({ capacity = 3, refillPerSecond = 1 }),
 	PingRequest = table.freeze({ capacity = 2, refillPerSecond = 0.25 }),
+	SprintRequest = table.freeze({ capacity = 10, refillPerSecond = 5 }),
 	MapVoteRequest = table.freeze({ capacity = 3, refillPerSecond = 0.5 }),
 	QueueRequest = table.freeze({ capacity = 4, refillPerSecond = 1 }),
 	ObjectiveRequest = table.freeze({ capacity = 4, refillPerSecond = 2 }),
@@ -17,6 +18,7 @@ ServerConfig.RateLimits = table.freeze({
 	ClientReady = table.freeze({ capacity = 2, refillPerSecond = 0.2 }),
 	PortalPrompt = table.freeze({ capacity = 2, refillPerSecond = 0.5 }),
 	HackPrompt = table.freeze({ capacity = 4, refillPerSecond = 2 }),
+	SurvivalPrompt = table.freeze({ capacity = 6, refillPerSecond = 3 }),
 })
 
 ServerConfig.Persistence = table.freeze({
