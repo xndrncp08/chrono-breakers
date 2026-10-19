@@ -108,7 +108,17 @@ export type MatchResultPayload = {
 	rewardsSaved: boolean,
 	xp: number?,
 	progressionRewards: { string }?,
-	stats: { hacks: number, eliminations: number, extracted: boolean },
+	stats: {
+		hacks: number,
+		eliminations: number,
+		extracted: boolean,
+		rescues: number?,
+		revives: number?,
+		heals: number?,
+		downs: number?,
+		containments: number?,
+		greats: number?,
+	},
 	participants: { PublicParticipant },
 }
 
@@ -121,6 +131,7 @@ export type ProfileSnapshot = {
 	stats: { [string]: number },
 	settings: { [string]: any },
 	progression: any?,
+	perks: { [string]: { string } }?,
 }
 
 return {}

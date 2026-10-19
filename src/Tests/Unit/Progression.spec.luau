@@ -39,7 +39,7 @@ return function(t: any)
 			RecentMatchIds = { "paid" },
 		})
 		t.expect(status).toBe("Ok")
-		t.expect(p.SchemaVersion).toBe(3)
+		t.expect(p.SchemaVersion).toBe(Schema.CURRENT_VERSION)
 		t.expect(p.ChronosScrap).toBe(900)
 		t.expect(p.OwnedItems.PhaseDash).toBe(true)
 		t.expect(p.Equipped.Gadget).toBe("PhaseDash")

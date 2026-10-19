@@ -42,7 +42,8 @@ export type WorldQuery = {
 	distanceTo: ((userId: number, kind: string, id: any) -> number?)?,
 	choosePod: ((userId: number, occupied: { [string]: boolean }) -> string?)?,
 	isKeeperNear: ((podId: string) -> boolean)?,
-	recoverySpeed: ((userId: number) -> number)?,
+	actionSpeed: ((userId: number, kind: string) -> number)?, -- Revive / Heal / Relay helpers
+	modifier: ((userId: number?, key: string) -> number)?, -- perk modifiers (PerkConfig keys)
 	canSelfHeal: ((userId: number) -> boolean)?,
 	riftSite: (() -> string?)?,
 	podIds: (() -> { string })?,
@@ -700,6 +701,10 @@ function MatchDirector.new(params: Params): MatchDirector
 
 	local calibration = SurvivalConfig.Calibration
 
+	local function modifier(userId: number?, key: string): number
+		return if world.modifier then world.modifier(userId, key) else 1
+	end
+
 	local function scheduleNextCheck(session: Session, userId: number, now: number)
 		local spread = calibration.MaxInterval - calibration.MinInterval
 		session.nextCheckAt[userId] = now + calibration.MinInterval + (params.randomIndex(6) - 1) / 5 * spread
@@ -721,7 +726,8 @@ function MatchDirector.new(params: Params): MatchDirector
 				p.greats += 1
 			end
 		elseif grade == "Miss" then
-			terminal.progress = math.max(0, terminal.progress - calibration.MissPenalty)
+			terminal.progress =
+				math.max(0, terminal.progress - calibration.MissPenalty * modifier(userId, "MissPenalty"))
 			emit("HackRisk", { matchId = session.matchId, userId = userId, terminalId = terminal.id })
 		end
 		emit("CalibrationResult", {
@@ -761,7 +767,8 @@ function MatchDirector.new(params: Params): MatchDirector
 				session.challengeSequence,
 				now,
 				params.randomIndex(HackChallenge.SEEDS),
-				session.objectives:completedCount()
+				session.objectives:completedCount(),
+				modifier(userId, "CalibrationArc")
 			)
 			session.challenges[userId] = { terminalId = terminal.id, check = check }
 			session.nextCheckAt[userId] = math.huge
@@ -865,7 +872,9 @@ function MatchDirector.new(params: Params): MatchDirector
 				emitTerminal(session, id, nil)
 			end
 			if terminal.regressing then
-				if terminal:regress(dt, SurvivalConfig.Objectives.RegressionPerSecond) then
+				local rate = SurvivalConfig.Objectives.RegressionPerSecond
+					* modifier(session.keeperUserId, "Regression")
+				if terminal:regress(dt, rate) then
 					emitTerminal(session, id, "RegressionEnded")
 				elseif terminal:shouldBroadcast(now, config.progressBroadcastInterval * 4) then
 					emit("TerminalProgress", { matchId = session.matchId, terminal = self:publicTerminal(id) })
@@ -1223,7 +1232,7 @@ function MatchDirector.new(params: Params): MatchDirector
 		if kind == "Contain" then
 			performContain(session, target, userId, now)
 		elseif kind == "Rescue" then
-			if session.survival:release(target, now) then
+			if session.survival:release(target, now, modifier(userId, "Endurance")) then
 				local p = session.participants[userId]
 				p.rescues += 1
 				endActionsOn(session, target, "Rescued")
@@ -1259,7 +1268,7 @@ function MatchDirector.new(params: Params): MatchDirector
 	local function pooledRate(helpers: { number }, kind: string, target: any): number
 		local rate = 0
 		for index, helper in helpers do
-			local speed = if world.recoverySpeed and kind ~= "Relay" then world.recoverySpeed(helper) else 1
+			local speed = if world.actionSpeed then world.actionSpeed(helper, kind) else 1
 			if kind == "Heal" and helper == target then
 				speed *= integrity.SelfHealRate
 			end
@@ -1441,9 +1450,11 @@ function MatchDirector.new(params: Params): MatchDirector
 	end
 
 	local function processSurvival(session: Session, now: number, dt: number)
-		local drain = if self.machine.phase == "Extraction" and session.endgame:tier(now) ~= "Stable"
-			then endgameConfig.RisingPodDrain
-			else 1
+		local drain = (
+			if self.machine.phase == "Extraction" and session.endgame:tier(now) ~= "Stable"
+				then endgameConfig.RisingPodDrain
+				else 1
+		) * modifier(session.keeperUserId, "PodDrain")
 		local events = session.survival:tick(now, dt, {
 			isCamped = function(podId: string)
 				return world.isKeeperNear ~= nil and world.isKeeperNear(podId)

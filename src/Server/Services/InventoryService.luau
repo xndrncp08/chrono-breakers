@@ -6,6 +6,7 @@
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
 local ItemConfig = require(ReplicatedStorage.Shared.Config.ItemConfig)
+local PerkConfig = require(ReplicatedStorage.Shared.Config.PerkConfig)
 local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 local RemoteNames = require(ReplicatedStorage.Shared.Network.RemoteNames)
 
@@ -26,6 +27,15 @@ function InventoryService.Init(injected: { [string]: any })
 	deps = injected
 end
 
+-- Perk ids for the loadout a player uses in `role` (validated again by ProfileSchema on load).
+function InventoryService.GetPerks(player: Player, role: string): { string }
+	local profile = deps.PlayerDataService.GetProfile(player)
+	if not profile then
+		return {}
+	end
+	return table.clone(profile.Perks[ProfileSchema.loadoutKey(profile, role)] or {})
+end
+
 function InventoryService.GetEquipped(player: Player, slot: string): string?
 	local profile = deps.PlayerDataService.GetProfile(player)
 	if profile then
@@ -44,7 +54,8 @@ local function handleShopRequest(player: Player, action: any, itemId: any, ...: 
 		deps.NetworkService.Reject(player, "Shop", Protocol.Codes.InvalidPayload)
 		return
 	end
-	if ItemConfig.get(itemId) == nil then
+	local isPerk = action == Protocol.ShopActions.TogglePerk
+	if (if isPerk then PerkConfig.get(itemId) else ItemConfig.get(itemId)) == nil then
 		deps.NetworkService.Reject(player, "Shop", Protocol.Codes.UnknownItem)
 		return
 	end
@@ -52,8 +63,9 @@ local function handleShopRequest(player: Player, action: any, itemId: any, ...: 
 		deps.NetworkService.Reject(player, "Shop", Protocol.Codes.InMatch)
 		return
 	end
-	local operation: (any, any) -> (boolean, string) = if action == Protocol.ShopActions.Purchase
-		then Economy.purchase
+	local operation: (any, any) -> (boolean, string) = if isPerk
+		then Economy.togglePerk
+		elseif action == Protocol.ShopActions.Purchase then Economy.purchase
 		else Economy.equip
 	local code = Protocol.Codes.ProfileUnavailable
 	local applied = deps.PlayerDataService.Mutate(player, function(profile)

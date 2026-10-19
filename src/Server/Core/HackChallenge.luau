@@ -34,14 +34,21 @@ function HackChallenge.arcWidth(mode: string, completed: number): number
 	return base * flavour.ArcScale
 end
 
-function HackChallenge.new(mode: string, nonce: number, now: number, seed: number, completed: number): Challenge
+function HackChallenge.new(
+	mode: string,
+	nonce: number,
+	now: number,
+	seed: number,
+	completed: number,
+	arcScale: number?
+): Challenge
 	local flavour = (config.Flavours :: any)[mode]
 	if flavour == nil then
 		mode = "Timing"
 		flavour = config.Flavours.Timing
 	end
 	local sweep = flavour.Sweep
-	local width = HackChallenge.arcWidth(mode, completed)
+	local width = math.min(120, HackChallenge.arcWidth(mode, completed) * (arcScale or 1))
 	-- Arc starts between 100° and 276° so there is always a readable lead-in.
 	local arcStart = 100 + ((seed - 1) % HackChallenge.SEEDS) * 22
 	local startAt = now + config.Warning

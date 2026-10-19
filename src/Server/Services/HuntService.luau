@@ -163,7 +163,14 @@ local function tick(dt: number)
 		local entry = stamina[player]
 		if not entry then
 			local class = ClassConfig.get(deps.MatchService.GetMatchClass(player))
-			entry = { model = StaminaModel.new(if class then class.StaminaScale else 1), sent = "", sentAt = 0 }
+			entry = {
+				model = StaminaModel.new(
+					if class then class.StaminaScale else 1,
+					deps.PerkService.Value(player, "StaminaRegen")
+				),
+				sent = "",
+				sentAt = 0,
+			}
 			stamina[player] = entry
 		end
 		local current = entry :: StaminaEntry

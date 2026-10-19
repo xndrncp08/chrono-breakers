@@ -608,11 +608,11 @@ local function onHackRisk(payload: any)
 	local keeper = MatchService.GetKeeper()
 	local hacker = playerById(payload.userId)
 	if keeper and hacker then
-		deps.NetworkService.FireClient(
-			RemoteNames.Effect,
-			keeper,
-			{ kind = "Tracking", userId = hacker.UserId, duration = 2.5 }
-		)
+		deps.NetworkService.FireClient(RemoteNames.Effect, keeper, {
+			kind = "Tracking",
+			userId = hacker.UserId,
+			duration = 2.5 * deps.PerkService.Value(keeper, "TraceDuration"),
+		})
 	end
 end
 
@@ -860,8 +860,15 @@ function MatchService.Init(injected: { [string]: any })
 			isKeeperNear = function(podId: string): boolean
 				return deps.SurvivalService.IsKeeperNear(podId)
 			end,
-			recoverySpeed = function(userId: number): number
-				return deps.SurvivalService.RecoverySpeed(userId)
+			actionSpeed = function(userId: number, kind: string): number
+				return deps.SurvivalService.ActionSpeed(userId, kind)
+			end,
+			modifier = function(userId: number?, key: string): number
+				return deps.PerkService.ValueFor(userId, key)
+			end,
+			canSelfHeal = function(userId: number): boolean
+				return deps.PerkService.ValueFor(userId, "SelfHeal") > 1 - 1e-6
+					and deps.PerkService.Has(playerById(userId), "SelfHeal")
 			end,
 			riftSite = function(): string?
 				return deps.SurvivalService.RiftSite()

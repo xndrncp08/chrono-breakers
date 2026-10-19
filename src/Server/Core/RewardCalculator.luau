@@ -24,6 +24,12 @@ export type ParticipantLike = {
 	extracted: boolean,
 	assists: number?,
 	classId: string?,
+	rescues: number?,
+	revives: number?,
+	heals: number?,
+	downs: number?,
+	containments: number?,
+	greats: number?,
 }
 
 export type Breakdown = {
@@ -73,6 +79,12 @@ function RewardCalculator.compute(result: ResultLike, participant: ParticipantLi
 		+ (participant.assists or 0) * xp.Assist
 		+ participant.eliminations * xp.Elimination
 		+ (if participant.extracted then xp.Extraction else 0)
+		+ (participant.rescues or 0) * xp.Rescue
+		+ (participant.revives or 0) * xp.Resync
+		+ (participant.heals or 0) * xp.Patch
+		+ (participant.greats or 0) * xp.Great
+		+ (participant.downs or 0) * xp.Down
+		+ (participant.containments or 0) * xp.Containment
 
 	local function line(label: string, amount: number)
 		if amount > 0 then
@@ -87,11 +99,17 @@ function RewardCalculator.compute(result: ResultLike, participant: ParticipantLi
 	end
 	if participant.role == "Infiltrator" then
 		line(`Terminals hacked ×{participant.hacks}`, participant.hacks * RewardConfig.PerTerminalHacked)
+		line(`Rescues ×{participant.rescues or 0}`, (participant.rescues or 0) * RewardConfig.PerRescue)
+		line(`Re-syncs ×{participant.revives or 0}`, (participant.revives or 0) * RewardConfig.PerResync)
 		if participant.extracted then
 			line("Extracted", RewardConfig.Extracted)
 		end
 	else
-		line(`Eliminations ×{participant.eliminations}`, participant.eliminations * RewardConfig.PerElimination)
+		line(
+			`Phase-Locks ×{participant.containments or 0}`,
+			(participant.containments or 0) * RewardConfig.PerContainment
+		)
+		line(`Erasures ×{participant.eliminations}`, participant.eliminations * RewardConfig.PerElimination)
 	end
 
 	local deltas = breakdown.statDeltas
@@ -105,6 +123,12 @@ function RewardCalculator.compute(result: ResultLike, participant: ParticipantLi
 	deltas.Eliminations = participant.eliminations
 	deltas.KeeperMatches = if participant.role == "TimeKeeper" then 1 else 0
 	deltas.InfiltratorMatches = if participant.role == "Infiltrator" then 1 else 0
+	deltas.Rescues = participant.rescues or 0
+	deltas.Resyncs = participant.revives or 0
+	deltas.Patches = participant.heals or 0
+	deltas.Containments = participant.containments or 0
+	deltas.Downs = participant.downs or 0
+	deltas.GreatCalibrations = participant.greats or 0
 	return breakdown
 end
 

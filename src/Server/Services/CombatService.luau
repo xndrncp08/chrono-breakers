@@ -123,7 +123,13 @@ local function resolve(caster: Player, aim: Vector3, matchId: string?)
 	if outcome == "Ignored" then
 		return
 	end
-	selfSlow(caster, "strikeRecoil", strike.RecoilSlow, strike.RecoilDuration, "StrikeRecoil")
+	selfSlow(
+		caster,
+		"strikeRecoil",
+		strike.RecoilSlow,
+		strike.RecoilDuration * deps.PerkService.Value(caster, "Recoil"),
+		"StrikeRecoil"
+	)
 	deps.HuntService.OnKeeperHit(caster)
 	if combo then
 		deps.NetworkService.FireClient(

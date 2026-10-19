@@ -45,7 +45,7 @@ export type SurvivalModel = {
 	hit: (self: SurvivalModel, userId: number, now: number) -> string,
 	recover: (self: SurvivalModel, userId: number, kind: string, amount: number) -> boolean,
 	contain: (self: SurvivalModel, userId: number, podId: string, now: number) -> string,
-	release: (self: SurvivalModel, userId: number, now: number) -> boolean,
+	release: (self: SurvivalModel, userId: number, now: number, enduranceScale: number?) -> boolean,
 	occupied: (self: SurvivalModel) -> { [string]: boolean },
 	tick: (self: SurvivalModel, now: number, dt: number, query: TickQuery) -> { Event },
 }
@@ -183,7 +183,7 @@ function SurvivalModel.new(podIds: { string }): SurvivalModel
 	end
 
 	-- Frees a captive (rescue or feedback release). The captive returns Injured with Endurance.
-	function self:release(userId: number, now: number): boolean
+	function self:release(userId: number, now: number, enduranceScale: number?): boolean
 		local vital = self.vitals[userId]
 		if not vital or vital.condition ~= "Contained" then
 			return false
@@ -191,7 +191,7 @@ function SurvivalModel.new(podIds: { string }): SurvivalModel
 		vacate(vital)
 		vital.condition = "Injured"
 		vital.heal = 0
-		vital.enduranceUntil = now + containment.EnduranceDuration
+		vital.enduranceUntil = now + containment.EnduranceDuration * (enduranceScale or 1)
 		return true
 	end
 
