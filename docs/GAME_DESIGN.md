@@ -1,5 +1,7 @@
 # Game Design — Chrono Breakers: Temporal Heist
 
+The core loop below is retained. Expansion systems and current verification limits are described in [EXPANSION_RELEASE](EXPANSION_RELEASE.md).
+
 Describes what is implemented. Values are defaults from `src/Shared/Config` (see BALANCE.md).
 
 ## Match loop
@@ -46,7 +48,7 @@ States: `Locked → Available → Hacking → Completed`, with `Hacking → Inte
 (1.5 s lockout). Rules:
 - Only an active, alive, unrestrained Infiltrator in the Active phase, within **12 studs**
   (server-measured), may start. The ProximityPrompt (10 studs) is only an input request.
-- **One hacker per terminal, one terminal per hacker.** Duplicate requests return `Busy` /
+- **One primary plus one optional assistant per terminal; one terminal per player.** Duplicate requests return `Busy` /
   `AlreadyHacking`.
 - Progress advances from server time (15 s total) and is broadcast at most 4×/s.
 - Interrupted by: leaving range, damage, death, stun/hold (Restrained), disconnect, elimination,
@@ -100,3 +102,16 @@ fill with character radius), and that the closed gate really blocks extraction.
 Chronos Scrap is earned only from match results (Participation 20, Victory 50, per terminal 15,
 extracted 40, per Keeper elimination 20). Spent on gadgets (side-grades) and cosmetic trails.
 No real-money products exist.
+
+## Expansion balance
+
+Class definitions live in ClassConfig; all five are free and available immediately. Ghost trades
+health for speed/stealth; Engineer trades movement for hacking; Medic heals living allies; Phantom
+trades health/hacking for mobility; Disruptor counters traps/control. Class skills use F/Y separately
+from the Q/L1 gadget. Keeper Chrono Pulse uses R/L2, leaving X free for interaction prompts.
+
+Safe hacking remains timed. Optional challenges grant 8% progress; failure removes 6%, interrupts
+and traces the hacker. Each completed objective raises remaining channel durations by 10%; an
+assistant adds 35% speed. XP, mastery, daily/weekly contracts and titles are cosmetic progression.
+Eight telegraphed anomaly modes add temporary routes, hazards and counterplay to all four maps.
+These expansion balance choices still need multiplayer playtesting.

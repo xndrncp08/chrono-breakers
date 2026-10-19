@@ -1,5 +1,5 @@
 --!strict
--- WorldService: validates the authored map contract (fails loudly), builds the world once, and
+-- WorldService: validates every authored map contract, builds/replaces the selected world, and
 -- exposes read-only world queries (spawns, terminal positions, extraction membership, raycasts).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
@@ -169,7 +169,7 @@ end
 -- Downward probe against static vault geometry only (characters/effects are excluded).
 function WorldService.CastDown(from: Vector3, depth: number): PlacementRules.GroundHit?
 	local result = Workspace:Raycast(from, Vector3.new(0, -depth, 0), geometryParams)
-	if result then
+	if result and result.Instance.CanCollide then
 		return { position = result.Position, normal = result.Normal }
 	end
 	return nil

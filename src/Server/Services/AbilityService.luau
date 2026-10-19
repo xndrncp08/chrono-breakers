@@ -1,7 +1,7 @@
 --!strict
 -- AbilityService: validates and executes every Time-Keeper ability and Infiltrator gadget.
 --
--- Pipeline for AbilityRequest(abilityId, target?, aim?):
+-- Pipeline for AbilityRequest(abilityId, target?, aim?, matchId):
 --   1. NetworkService rate limit (per player).
 --   2. Payload shape: argument count, string id, finite Vector3 target, non-degenerate aim.
 --   3. AbilityRules.checkCaster: known id, phase, participant, role, equipped gadget, alive,

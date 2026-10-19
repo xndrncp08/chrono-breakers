@@ -37,3 +37,14 @@ Defaults follow the design brief; none have been playtested with real players ye
 
 ## Playtest observations
 None yet — no multi-player session has been run (see TEST_PLAN.md).
+
+## Expansion tuning (not live-playtested)
+
+See ClassConfig, ProgressionConfig and AnomalyConfig for the canonical values. Ghost: 17 speed/80 HP;
+Engineer: 15/100 and ×1.15 hack; Medic: 16/95; Phantom: 16.5/85 and ×0.9 hack; Disruptor: 16/100
+and ×0.95 hack. Skills: Veil 5s/30s CD, Overclock ×1.5 for 6s/30s CD, Mend 28 HP/18 studs/40s CD,
+Slipstream ×2 for 1.5s/26s CD, EMP 18 studs/36s CD. Pulse: 48 studs, 1.5s warning, 3s reveal/30s CD.
+
+Anomalies: first warning after 30s Active, warning 3s, radius 13, duration 6–12s, next warning 35s
+after expiry. One at a time; protected spawns/objectives are excluded by map validation. Progression
+never modifies these values. Real match balance and low-end performance remain release gates.

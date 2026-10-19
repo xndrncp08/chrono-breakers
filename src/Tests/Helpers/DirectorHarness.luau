@@ -75,6 +75,7 @@ function Harness.new(overrides: { [string]: any }?): Harness
 	self.director = MatchDirector.new({
 		config = Harness.config(overrides),
 		terminals = Harness.TERMINALS,
+		prepareMatch = if overrides then overrides.prepareMatch else nil,
 		now = 0,
 		newMatchId = function()
 			idCounter += 1

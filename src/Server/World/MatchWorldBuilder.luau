@@ -1,6 +1,6 @@
 --!strict
--- Builds the lobby and the Chronos Vault from MapLayout data. Deterministic: the same layout always
--- produces the same instances. Called once at server start, after MapValidator has passed.
+-- Builds the lobby and selected authored map deterministically at startup and between matches.
+-- Every registered layout must pass MapValidator before gameplay starts.
 
 local CollectionService = game:GetService("CollectionService")
 local Lighting = game:GetService("Lighting")
@@ -289,6 +289,9 @@ function MatchWorldBuilder.build(selectedMap: MapLayout.MapDefinition?): BuiltWo
 		text.Size, text.BackgroundTransparency, text.Text, text.Font, text.TextScaled, text.TextColor3 =
 			UDim2.fromScale(1, 1), 1, string.upper(landmark.name), Theme.Fonts.Heading, true, Theme.Colors.Stable
 		text.Parent = gui
+		local reverse = gui:Clone()
+		reverse.Face = Enum.NormalId.Back
+		reverse.Parent = sign
 	end
 
 	local terminalsFolder = Instance.new("Folder")

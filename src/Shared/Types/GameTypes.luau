@@ -50,6 +50,19 @@ export type PublicTerminal = {
 }
 
 export type MatchSnapshot = {
+	mapId: string?,
+	mapName: string?,
+	mapVotes: { [string]: string }?,
+	anomaly: {
+		id: string,
+		kind: string,
+		position: Vector3,
+		destination: Vector3,
+		radius: number,
+		activatesAt: number,
+		endsAt: number,
+		state: string,
+	}?,
 	version: number,
 	matchId: string?,
 	phase: Phase,

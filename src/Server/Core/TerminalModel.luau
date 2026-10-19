@@ -8,7 +8,7 @@
 --   Interrupted -> Available    (lockout elapsed)
 --   any         -> Locked       (match ended; lockAll) — Completed stays Completed
 --
--- Concurrency rule: exactly one hacker per terminal. Duplicate start requests are rejected with
+-- One primary channel; MatchDirector owns the optional assistant slot. Duplicate primary requests return
 -- "Busy" (other player) or "AlreadyHacking" (same player).
 
 local ReplicatedStorage = game:GetService("ReplicatedStorage")

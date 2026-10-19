@@ -210,6 +210,28 @@ function AnomalyService.SetTestPaused(value: boolean)
 	assert(RunService:IsStudio(), "test controls are Studio-only")
 	paused = value
 end
+-- Deterministic engine fixtures are server-only and cannot run on published servers.
+function AnomalyService.TestEvent(kind: string)
+	assert(RunService:IsStudio(), "test controls are Studio-only")
+	local index = table.find(Config.Order, kind)
+	assert(index, "unknown test anomaly")
+	local matchId = deps.MatchService.CurrentMatchId()
+	assert(matchId, "test anomaly needs a live match")
+	AnomalyService.EndMatch()
+	local t = Workspace:GetServerTimeNow()
+	local calls = 0
+	local fixture = AnomalyModel.new(matchId, deps.WorldService.GetMap().anomalySites, t, function()
+		calls += 1
+		return if calls == 1 then index else 1
+	end)
+	model = fixture
+	fixture.nextAt = t - Config.Warning
+	paused = false
+	AnomalyService.Tick(t - Config.Warning)
+	AnomalyService.Tick(t)
+	return AnomalyService.Snapshot()
+end
+
 function AnomalyService.Tick(t: number)
 	if not model or paused then
 		return

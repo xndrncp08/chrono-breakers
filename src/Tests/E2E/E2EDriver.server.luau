@@ -1511,6 +1511,168 @@ local function runSquad(players: { Player })
 	)
 end
 
+local function runExpansion(players: { Player })
+	assert(#players >= 2, "Expansion engine suite requires 2–5 clients")
+	local classConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+	local mapConfig = require(ReplicatedStorage.Shared.Config.MapConfig)
+	local anomalyConfig = require(ReplicatedStorage.Shared.Config.AnomalyConfig)
+	local director = MatchService.GetDirector()
+	director.config.resultsDuration = 1
+	director.config.returnToLobbyDuration = 1
+	for round, classId in classConfig.Order do
+		local mapId = mapConfig.Order[(round - 1) % #mapConfig.Order + 1]
+		for _, p in players do
+			check(
+				`expansion: profile ready for {p.Name}`,
+				waitFor(function()
+					return PlayerDataService.GetState(p) == "Loaded" or PlayerDataService.GetState(p) == "Unsaved"
+				end, 30)
+			)
+			local equipped = client(p, "fire", { remote = "ShopRequest", args = { "Equip", classId }, collect = 0.1 })
+			check(`expansion: free {classId} equip`, hasCode(equipped, "Ok"), codes(equipped))
+			client(p, "fire", { remote = "QueueRequest", args = { "Join" }, collect = 0.1 })
+			client(p, "fire", { remote = "MapVoteRequest", args = { mapId }, collect = 0.1 })
+		end
+		check(
+			`expansion: round {round} active`,
+			waitFor(function()
+				return director:getPhase() == "Active"
+			end, 45)
+		)
+		check(`expansion: selected map {mapId}`, WorldService.GetMapId() == mapId, WorldService.GetMapId())
+		local team = MatchService.GetActiveInfiltrators()
+		local actor = team[1]
+		local keeper = MatchService.GetKeeper()
+		assert(actor and keeper, "missing expansion participants")
+		local class = classConfig.get(classId)
+		assert(class, "missing configured class")
+		local humanoid = humanoidOf(actor) :: Humanoid
+		check(
+			`expansion: {classId} baseline health/speed`,
+			humanoid.MaxHealth == class.MaxHealth and near(humanoid.WalkSpeed, class.WalkSpeed)
+		)
+		if classId == "ChronoMedic" then
+			humanoid.Health = humanoid.MaxHealth - 40
+		end
+		if classId == "Disruptor" then
+			waitFor(function()
+				return not StatusEffectService.IsRestrained(keeper)
+			end, 12)
+			local site = WorldService.GetMap().anomalySites[1]
+			moveTo(keeper, site + Vector3.new(0, 3, -10))
+			moveTo(actor, site + Vector3.new(0, 3, 6))
+			local placed =
+				client(keeper, "fire", { remote = "AbilityRequest", args = { "TemporalTrap", site }, collect = 0.2 })
+			check("expansion: Keeper plants EMP target", hasCode(placed, "Ok"), codes(placed))
+		end
+		local healthBefore = humanoid.Health
+		local cast = client(actor, "fire", { remote = "AbilityRequest", args = { class.AbilityId }, collect = 0.2 })
+		check(`expansion: {class.AbilityId} accepted`, hasCode(cast, "Ok"), codes(cast))
+		if classId == "Ghost" then
+			check(
+				"expansion: Veil cloaks real character",
+				StatusEffectService.Has(actor, "Cloaked") and actor.Character:GetAttribute("ChronoCloaked") == true
+			)
+			MatchService.NotifyDamage(actor)
+			check("expansion: damage breaks Veil", not StatusEffectService.Has(actor, "Cloaked"))
+		elseif classId == "Engineer" then
+			check("expansion: Overclock status active", StatusEffectService.Has(actor, "Overclock"))
+		elseif classId == "ChronoMedic" then
+			check("expansion: Mend heals real Humanoid", near(humanoid.Health, healthBefore + 28))
+		elseif classId == "Phantom" then
+			check("expansion: Slipstream uses class baseline", near(humanoid.WalkSpeed, class.WalkSpeed * 2))
+		else
+			local _, traps = AbilityService.CountRuntime()
+			check("expansion: EMP disarms trap", traps == 0, traps)
+		end
+		local duplicate =
+			client(actor, "fire", { remote = "AbilityRequest", args = { class.AbilityId }, collect = 0.1 })
+		check(`expansion: {class.AbilityId} cooldown`, hasCode(duplicate, "OnCooldown"), codes(duplicate))
+		local stale = client(actor, "fire", {
+			remote = "AbilityRequest",
+			raw = true,
+			args = { class.AbilityId, { ["$nil"] = true }, { ["$nil"] = true }, "stale-match" } :: { any },
+			collect = 0.1,
+		})
+		check("expansion: stale ability rejected", hasCode(stale, "StaleRequest"), codes(stale))
+		StatusEffectService.ClearAll(actor)
+		local id = WorldService.GetTerminalSpecs()[1].id
+		moveToTerminal(actor, id)
+		check("expansion: primary starts hack", (MatchService.RequestHack(actor, id)))
+		if team[2] then
+			moveToTerminal(team[2], id)
+			check("expansion: teammate assists", (MatchService.RequestHack(team[2], id)))
+		end
+		local session = director.session :: any
+		local challenge = session.challenges[id]
+		check("expansion: challenge issued", challenge ~= nil)
+		if challenge then
+			waitFor(function()
+				return Workspace:GetServerTimeNow() >= challenge.opensAt + 0.05
+			end, 4)
+			local request = {
+				remote = "HackChallengeRequest",
+				args = { session.matchId, id, challenge.nonce, challenge.answer },
+				collect = 0.1,
+			}
+			local response = client(actor, "fire", request)
+			check("expansion: challenge accepted through remote", hasCode(response, "Ok"), codes(response))
+			response = client(actor, "fire", request)
+			check("expansion: challenge replay rejected", hasCode(response, "StaleRequest"), codes(response))
+		end
+		MatchService.CancelHack(actor, "Cancelled")
+		local safe = (rootOf(actor) :: BasePart).Position
+		actor.Character:PivotTo(CFrame.new(80, 3, 0))
+		local _, code = MatchService.RequestHack(actor, id)
+		check("expansion: forged displacement rejected", code == "OutOfRange", code)
+		check("expansion: forged displacement corrected", ((rootOf(actor) :: BasePart).Position - safe).Magnitude < 8)
+		if round == 1 then
+			for _, kind in anomalyConfig.Order do
+				local event = AnomalyService.TestEvent(kind)
+				check(
+					`expansion: {kind} creates real runtime`,
+					event
+						and event.state == "Active"
+						and WorldService.GetGeometryFolder():FindFirstChild("TemporalAnomaly") ~= nil
+				)
+				moveTo(actor, event.position + Vector3.new(0, 3, 0))
+				task.wait(0.25)
+				if kind == "Gravity" then
+					check(
+						"expansion: gravity force attached",
+						(rootOf(actor) :: BasePart):FindFirstChild("GravityFlux") ~= nil
+					)
+				end
+				AnomalyService.Tick(event.endsAt + 0.1)
+				check(
+					`expansion: {kind} runtime cleaned`,
+					WorldService.GetGeometryFolder():FindFirstChild("TemporalAnomaly") == nil
+				)
+				check(
+					`expansion: {kind} force cleaned`,
+					(rootOf(actor) :: BasePart):FindFirstChild("GravityFlux") == nil
+				)
+			end
+			AnomalyService.SetTestPaused(true)
+		end
+		for _, p in team do
+			director:eliminate(p.UserId, keeper.UserId, Workspace:GetServerTimeNow())
+		end
+		check("expansion: round resolves once", director:getPhase() == "Resolving")
+		check(
+			"expansion: round cleans up",
+			waitFor(function()
+				return director.session == nil and director:getPhase() == "WaitingForPlayers"
+			end, 15)
+		)
+		check(
+			"expansion: no lingering effects",
+			StatusEffectService.CountEffects() == 0,
+			StatusEffectService.CountEffects()
+		)
+	end
+end
+
 task.spawn(function()
 	print("[E2E] driver waiting for players (1 player = solo suite, 2 = multiplayer, 3-5 = squad)")
 	local ready = waitFor(function()
@@ -1532,8 +1694,9 @@ task.spawn(function()
 	end, 15)
 	task.wait(2) -- let ClientReady/state sync settle
 	local count = #Players:GetPlayers()
-	local mode = if count >= 3 and #helloPlayers >= 3
-		then "squad"
+	local mode = if testsFolder:GetAttribute("RunExpansionE2E") == true
+		then "expansion"
+		elseif count >= 3 and #helloPlayers >= 3 then "squad"
 		elseif count == 2 and #helloPlayers >= 2 then "multiplayer"
 		else "solo"
 	-- Precondition: every player idle in the lobby. Manual input (e.g. clicking Join Queue) during
@@ -1549,7 +1712,12 @@ task.spawn(function()
 		end
 	end
 	print(`[E2E] starting {mode} suite with {#helloPlayers} player(s)`)
-	if mode == "solo" then
+	if mode == "expansion" then
+		local ok, err = Safe.call(runExpansion, table.clone(helloPlayers))
+		if not ok then
+			check("expansion completed without driver errors", false, err)
+		end
+	elseif mode == "solo" then
 		local player = helloPlayers[1] :: Player
 		local ok, err = Safe.call(runMatchOne, player)
 		if not ok then
