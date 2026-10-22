@@ -188,6 +188,18 @@ return function(t: any)
 			t.expect(stamina.value).toBeGreaterThan(config.RecoverThreshold - 1)
 		end)
 
+		t.it("gadget costs are paid up front and pause regeneration", function()
+			local config = SurvivalConfig.Stamina
+			local stamina = StaminaModel.new()
+			t.expect(stamina:spend(0, 35)).toBe(true)
+			t.expect(stamina.value).toBe(config.Max - 35)
+			stamina:tick(0.5, 0.5, false, true)
+			t.expect(stamina.value).toBe(config.Max - 35) -- still inside RegenDelay
+			t.expect(stamina:spend(0.5, 70)).toBe(false) -- cannot overdraw
+			stamina.exhausted = true
+			t.expect(stamina:spend(0.5, 1)).toBe(false)
+		end)
+
 		t.it("never sprints when the server disallows it", function()
 			local stamina = StaminaModel.new(1.25)
 			stamina:setWanted(true)

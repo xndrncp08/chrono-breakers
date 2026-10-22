@@ -195,6 +195,16 @@ local function tick(dt: number)
 	end
 end
 
+-- Pays a gadget's stamina cost; false while exhausted, short, or outside a match.
+function HuntService.SpendStamina(player: Player, amount: number): boolean
+	local entry = stamina[player]
+	if not entry or not entry.model:spend(now(), amount) then
+		return false
+	end
+	sendStamina(player, entry, true)
+	return true
+end
+
 function HuntService.IsChased(player: Player): boolean
 	return chase:isChased(player.UserId)
 end

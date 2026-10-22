@@ -401,6 +401,38 @@ local function castGadget(player: Player, abilityId: string): (boolean, string)
 			})
 			deps.NetworkService.Notify({ keeper }, Protocol.NotifyKinds.Warning, "You've been scanned!", "Warning", 2)
 		end
+	elseif abilityId == "Afterimage" then
+		local definition = AbilityConfig.Abilities.Afterimage
+		local root = getRoot(player)
+		if not root or deps.InteractionService.IsHidden(player) then
+			return false, Protocol.Codes.NotAlive
+		end
+		if not deps.HuntService.SpendStamina(player, definition.StaminaCost) then
+			return false, Protocol.Codes.Exhausted
+		end
+		local velocity = root.AssemblyLinearVelocity
+		local flat = Vector3.new(velocity.X, 0, velocity.Z)
+		local look = Vector3.new(root.CFrame.LookVector.X, 0, root.CFrame.LookVector.Z)
+		local direction = if flat.Magnitude > 4
+			then flat.Unit
+			elseif look.Magnitude > 1e-3 then look.Unit
+			else Vector3.zAxis
+		local character = player.Character :: Model
+		-- Residue is suppressed on every client while the echo runs (presentation only).
+		character:SetAttribute("Afterimage", true)
+		task.delay(definition.Duration, function()
+			if character.Parent then
+				character:SetAttribute("Afterimage", nil)
+			end
+		end)
+		deps.NetworkService.FireList(RemoteNames.Effect, deps.MatchService.GetParticipants(), {
+			kind = "Afterimage",
+			userId = player.UserId,
+			position = root.Position,
+			direction = direction,
+			speed = math.clamp(flat.Magnitude, definition.MinSpeed, definition.MaxSpeed),
+			duration = definition.Duration,
+		})
 	else
 		return false, Protocol.Codes.InvalidPayload
 	end
@@ -532,6 +564,12 @@ local function runtimeTick()
 				and origin
 				and deps.MatchService.IsActiveParticipant(scan.player)
 			then
+				-- The pulse also shatters Afterimage echoes inside its radius on every client.
+				deps.NetworkService.FireList(RemoteNames.Effect, participants, {
+					kind = "EchoesDispelled",
+					position = origin.Position,
+					radius = AbilityConfig.Abilities.ChronoScan.Radius,
+				})
 				for _, target in deps.MatchService.GetFreeInfiltrators() do
 					local root = getRoot(target)
 					if

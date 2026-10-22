@@ -53,6 +53,16 @@ local items: { [string]: ItemDefinition } = {
 		AbilityId = "EchoScanner",
 		SortOrder = 3,
 	} :: ItemDefinition),
+	Afterimage = table.freeze({
+		Id = "Afterimage",
+		DisplayName = "Afterimage",
+		Description = "Gadget: leave a decoy echo running your old heading. Costs stamina; Chrono Pulse dispels it.",
+		Slot = "Gadget",
+		Cost = 200,
+		DefaultOwned = false,
+		AbilityId = "Afterimage",
+		SortOrder = 4,
+	} :: ItemDefinition),
 	TrailCyan = table.freeze({
 		Id = "TrailCyan",
 		DisplayName = "Stable Cyan Trail",
