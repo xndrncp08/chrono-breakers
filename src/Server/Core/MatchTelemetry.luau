@@ -8,6 +8,7 @@ export type ClassStats = { picked: number, extracted: number, erased: number }
 
 export type Summary = {
 	mapId: string,
+	condition: string, -- Timeline Condition id
 	squad: number,
 	durationSec: number,
 	winner: string,
@@ -44,7 +45,7 @@ local MatchTelemetry = {}
 MatchTelemetry.TunnelWindow = 15
 
 -- `classOf` maps an Infiltrator's user id to their class id (nil for the Keeper).
-function MatchTelemetry.new(mapId: string, classOf: (number) -> string?): MatchTelemetry
+function MatchTelemetry.new(mapId: string, classOf: (number) -> string?, condition: string?): MatchTelemetry
 	local startedAt: number? = nil
 	local result: any = nil
 	local roles: { [number]: string } = {}
@@ -54,6 +55,7 @@ function MatchTelemetry.new(mapId: string, classOf: (number) -> string?): MatchT
 	local chaseTotal, chaseMax, chaseCount = 0, 0, 0
 	local s: Summary = {
 		mapId = mapId,
+		condition = condition or "Stable",
 		squad = 0,
 		durationSec = 0,
 		winner = "None",
@@ -232,6 +234,7 @@ export type Aggregate = {
 	tunnelHitShare: number, -- tunnel hits / all hits
 	disconnectsPerMatch: number,
 	byMap: { [string]: { matches: number, keeperWins: number } },
+	byCondition: { [string]: { matches: number, keeperWins: number } },
 }
 
 local function ratio(a: number, b: number): number
@@ -244,6 +247,7 @@ function MatchTelemetry.aggregate(summaries: { Summary }): Aggregate
 	local keeperWins, duration, extracted, terminals, hits, rescues, camps, tunnels, leaves = 0, 0, 0, 0, 0, 0, 0, 0, 0
 	local chaseTime, chases = 0, 0
 	local byMap: { [string]: { matches: number, keeperWins: number } } = {}
+	local byCondition: { [string]: { matches: number, keeperWins: number } } = {}
 	for _, summary in summaries do
 		local won = summary.winner == "TimeKeeper"
 		keeperWins += if won then 1 else 0
@@ -261,6 +265,10 @@ function MatchTelemetry.aggregate(summaries: { Summary }): Aggregate
 		map.matches += 1
 		map.keeperWins += if won then 1 else 0
 		byMap[summary.mapId] = map
+		local entry = byCondition[summary.condition] or { matches = 0, keeperWins = 0 }
+		entry.matches += 1
+		entry.keeperWins += if won then 1 else 0
+		byCondition[summary.condition] = entry
 	end
 	return {
 		matches = n,
@@ -275,6 +283,7 @@ function MatchTelemetry.aggregate(summaries: { Summary }): Aggregate
 		tunnelHitShare = ratio(tunnels, hits),
 		disconnectsPerMatch = ratio(leaves, n),
 		byMap = byMap,
+		byCondition = byCondition,
 	}
 end
 
