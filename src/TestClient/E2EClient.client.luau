@@ -120,6 +120,13 @@ local function snapshot(): { [string]: any }
 	local snap = ClientState.get("snapshot")
 	out.phase = snap and snap.phase
 	out.condition = snap and snap.condition
+	local residue = workspace:FindFirstChild("ChronoResidue")
+	out.echoes = 0
+	for _, child in (residue and residue:GetChildren()) or {} do
+		if child:GetAttribute("Echo") then
+			out.echoes += 1
+		end
+	end
 	out.clientErrors = clientErrors
 	out.firstClientError = firstClientError
 	out.completedHacks = snap and snap.completedHacks
