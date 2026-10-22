@@ -67,6 +67,7 @@ export type PublicTerminal = {
 export type MatchSnapshot = {
 	mapId: string?,
 	mapName: string?,
+	condition: string?, -- Timeline Condition id (ConditionConfig)
 	mapVotes: { [string]: string }?,
 	anomaly: {
 		id: string,

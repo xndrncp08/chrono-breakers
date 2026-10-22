@@ -7,6 +7,7 @@ local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
 local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
+local ConditionConfig = require(ReplicatedStorage.Shared.Config.ConditionConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
 
@@ -30,7 +31,7 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 		Name = "Accent",
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Position = UDim2.fromScale(0.5, 0.5),
-		Size = UDim2.new(1, 0, 0, 260),
+		Size = UDim2.new(1, 0, 0, 290),
 		BackgroundColor3 = Theme.Colors.Surface,
 		BackgroundTransparency = 0.1,
 		BorderSizePixel = 0,
@@ -97,12 +98,22 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 		LayoutOrder = 5,
 		Parent = content,
 	})
+	local timeline = Style.text({
+		Name = "TimelineCondition",
+		Text = "",
+		TextSize = Theme.TextSize.Small,
+		Color = Theme.Colors.Temporal,
+		Size = UDim2.new(1, 0, 0, 20),
+		XAlign = Enum.TextXAlignment.Center,
+		LayoutOrder = 6,
+		Parent = content,
+	})
 	local countdown = Style.text({
 		Text = "",
 		TextSize = Theme.TextSize.Small,
 		Color = Theme.Colors.TextMuted,
 		XAlign = Enum.TextXAlignment.Center,
-		LayoutOrder = 6,
+		LayoutOrder = 7,
 		Parent = content,
 	})
 	for _, child in content:GetChildren() do
@@ -149,6 +160,11 @@ function RoleReveal.new(parent: Instance, deps: { [string]: any })
 			kitText ..= `   |   TIME-KEEPER: {role.keeperName}`
 		end
 		kit.Text = kitText
+		local condition = ConditionConfig.get(role.condition)
+		timeline.Text = if condition and condition.Id ~= "Stable"
+			then `TIMELINE: {string.upper(condition.Name)} — {condition.Description}`
+			else ""
+		timeline.Visible = timeline.Text ~= ""
 		gradient.Color = ColorSequence.new(color:Lerp(Theme.Colors.Background, 0.75), Theme.Colors.Background)
 		root.Visible = true
 		deps.AudioController.Play("RoleReveal")

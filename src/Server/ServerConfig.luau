@@ -53,6 +53,10 @@ ServerConfig.Telemetry = table.freeze({
 	AnalyticsEnabled = true, -- headline numbers to Roblox AnalyticsService custom events
 })
 
+ServerConfig.TimelineConditions = table.freeze({
+	Enabled = true, -- false: every match is "Stable"
+})
+
 ServerConfig.Combat = table.freeze({
 	EyeHeight = 1.5,
 })
