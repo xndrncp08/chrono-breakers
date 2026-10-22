@@ -509,6 +509,7 @@ local function handleAbilityRequest(player: Player, abilityId: any, target: any,
 		local cooldown = definition.Cooldown
 			* (if abilityId == "Slipstream" then deps.PerkService.Value(player, "SlipstreamCooldown") else 1)
 		cooldowns:start(key, t, cooldown)
+		deps.TelemetryService.Ability(abilityId)
 		deps.NetworkService.Accept(player, "Ability", { abilityId = abilityId, result = resultCode })
 	else
 		deps.NetworkService.Reject(player, "Ability", resultCode)
