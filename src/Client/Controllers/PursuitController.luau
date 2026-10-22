@@ -158,6 +158,7 @@ local function groundParams(): RaycastParams
 		end
 	end
 	params.FilterDescendantsInstances = ignore
+	params.RespectCanCollide = true -- trigger volumes and decals neither block nor floor an echo
 	return params
 end
 
