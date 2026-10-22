@@ -100,7 +100,7 @@ function SurvivalOverlay.new(parent: Instance): SurvivalOverlay
 		Name = "ThreatArrow",
 		Text = "▲",
 		Font = Theme.Fonts.Display,
-		TextSize = 34,
+		TextSize = Theme.TextSize.Title,
 		Color = Theme.Colors.Danger,
 		AnchorPoint = Vector2.new(0.5, 0.5),
 		Size = UDim2.fromOffset(44, 44),
@@ -222,7 +222,9 @@ function SurvivalOverlay.new(parent: Instance): SurvivalOverlay
 				UDim2.fromScale(0.5 + math.sin(threat.angle) * 0.36, 0.5 - math.cos(threat.angle) * 0.36)
 			threatArrow.Rotation = math.deg(threat.angle)
 			threatArrow.TextTransparency = if strikeWarn then 0 else 0.55 - 0.45 * threat.strength
-			threatArrow.TextSize = if strikeWarn and not reducedMotion then 42 else 34
+			threatArrow.TextSize = if strikeWarn and not reducedMotion
+				then Theme.TextSize.Hero
+				else Theme.TextSize.Title
 			threatArrow.Visible = true
 		else
 			threatArrow.Visible = false
