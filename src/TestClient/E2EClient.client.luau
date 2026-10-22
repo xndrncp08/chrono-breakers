@@ -101,6 +101,15 @@ local function lintLayout(gui: ScreenGui): { string }
 	return issues
 end
 
+-- Runtime errors raised by the game's client scripts (not this agent).
+local clientErrors, firstClientError = 0, nil :: string?
+game:GetService("ScriptContext").Error:Connect(function(message: string, _trace: string, source: Instance?)
+	if source and source:IsDescendantOf(clientFolder) then
+		clientErrors += 1
+		firstClientError = firstClientError or `{source:GetFullName()}: {message}`
+	end
+end)
+
 local function snapshot(): { [string]: any }
 	local gui = player.PlayerGui:FindFirstChild("ChronoUI")
 	local out: { [string]: any } = {
@@ -110,6 +119,9 @@ local function snapshot(): { [string]: any }
 	}
 	local snap = ClientState.get("snapshot")
 	out.phase = snap and snap.phase
+	out.condition = snap and snap.condition
+	out.clientErrors = clientErrors
+	out.firstClientError = firstClientError
 	out.completedHacks = snap and snap.completedHacks
 	local role = ClientState.currentRole()
 	out.role = role and role.role
@@ -130,6 +142,14 @@ local function snapshot(): { [string]: any }
 			won = result.won,
 			total = result.rewardTotal,
 			lines = #result.rewards,
+			-- Match breakdown only; `total` also includes contract/level-up Scrap from progression.
+			breakdown = (function()
+				local sum = 0
+				for _, line in result.rewards do
+					sum += line.amount
+				end
+				return sum
+			end)(),
 		}
 	end
 	local profile = ClientState.get("profile")
@@ -158,6 +178,8 @@ local function snapshot(): { [string]: any }
 			local f = gui:FindFirstChild(name) :: GuiObject?
 			out["ui_" .. name] = f ~= nil and f.Visible
 		end
+		local guide = gui:FindFirstChild("FieldGuide") :: GuiObject?
+		out.ui_FieldGuide = guide ~= nil and guide.Visible
 		local hud = gui:FindFirstChild("Hud")
 		if hud then
 			local hack = hud:FindFirstChild("HackPanel") :: GuiObject?

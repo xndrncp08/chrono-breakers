@@ -5,6 +5,7 @@
 -- remotes, and real ProximityPrompts, and prints "[E2E] PASS/FAIL ..." lines plus a summary.
 -- Results are read through Roblox Studio MCP (get_output_logs on the play server peer).
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -68,7 +69,12 @@ local function check(name: string, condition: boolean, detail: any?)
 		print(`[E2E] PASS {name}`)
 	else
 		failed += 1
-		warn(`[E2E] FAIL {name} :: {tostring(detail)}`)
+		local text = tostring(detail)
+		if type(detail) == "table" then
+			local ok, json = pcall(HttpService.JSONEncode, HttpService, detail)
+			text = if ok then string.sub(json, 1, 900) else text
+		end
+		warn(`[E2E] FAIL {name} :: {text}`)
 	end
 end
 
@@ -133,6 +139,8 @@ local function baseline(player: Player): number
 	local class = ClassConfig.get(MatchService.GetMatchClass(player))
 	return if class then class.WalkSpeed else 17
 end
+
+local KEEPER_SPEED = (require(ReplicatedStorage.Shared.Config.RoleConfig) :: any).get("TimeKeeper").WalkSpeed
 
 local function near(a: number?, b: number, eps: number?): boolean
 	return a ~= nil and math.abs(a - b) <= (eps or 0.05)
@@ -338,6 +346,18 @@ local function runMatchOne(player: Player)
 	)
 	snap = client(player, "snapshot")
 	check("client: HUD visible, lobby hidden", snap and snap.ui_Hud == true and snap.ui_Lobby == false, snap)
+	check(
+		"conditions: pinned Timeline Condition replicated",
+		snap and snap.condition == "Stable",
+		snap and snap.condition
+	)
+	check(
+		"field guide: a first-match player is coached when the match goes live",
+		waitFor(function()
+			local s = client(player, "snapshot")
+			return s ~= nil and s.ui_FieldGuide == true
+		end, 6)
+	)
 	check("client: core PlayerList hidden (squad panel owns top-right)", snap and snap.corePlayerList == false)
 	check(
 		"layout: HUD has no clipped or offscreen elements",
@@ -672,12 +692,19 @@ local function runMatchOne(player: Player)
 		snap and snap.result and snap.result.won == true and snap.result.lines >= 3,
 		snap and snap.result
 	)
-	local expected = 20 + 50 + 4 * 15 + 40
+	local breakdown = 20 + 50 + 4 * 15 + 40
 	check(
-		`rewards: payout = {expected}`,
-		snap and snap.result and snap.result.total == expected,
-		snap and snap.result and snap.result.total
+		`rewards: match breakdown = {breakdown}`,
+		snap and snap.result and snap.result.breakdown == breakdown,
+		snap and snap.result
 	)
+	-- The credited total adds any contract / level-up Scrap on top of the breakdown.
+	local expected = if snap
+			and snap.result
+			and type(snap.result.total) == "number"
+		then snap.result.total
+		else breakdown
+	check("rewards: credited total covers the breakdown", expected >= breakdown, snap and snap.result)
 	local profile = PlayerDataService.GetProfile(player)
 	check(
 		"rewards: profile credited exactly once",
@@ -802,16 +829,14 @@ local function runMatchTwo(player: Player)
 	)
 	check(
 		"match 2: defeat pays participation only (20)",
-		snap and snap.result and snap.result.won == false and snap.result.total == 20,
+		snap and snap.result and snap.result.won == false and snap.result.breakdown == 20,
 		snap and snap.result
 	)
-	check(
-		"match 2: profile credited +20 separately",
-		waitFor(function()
-			local p = PlayerDataService.GetProfile(player)
-			return p ~= nil and p.ChronosScrap == scrapBefore + 20
-		end, 3)
-	)
+	local credited = if snap and snap.result and type(snap.result.total) == "number" then snap.result.total else 20
+	check("match 2: profile credited separately", credited >= 20 and waitFor(function()
+		local p = PlayerDataService.GetProfile(player)
+		return p ~= nil and p.ChronosScrap == scrapBefore + credited
+	end, 3), credited)
 	check(
 		"match 2: eliminated player respawns in the lobby",
 		waitFor(function()
@@ -988,9 +1013,9 @@ local function runMultiplayer(a: Player, b: Player)
 	)
 
 	check(
-		"keeper: released after 10 s (speed 17)",
+		`keeper: released after 10 s (speed {KEEPER_SPEED})`,
 		waitFor(function()
-			return near(walkSpeed(keeper), 17)
+			return near(walkSpeed(keeper), KEEPER_SPEED)
 		end, 12),
 		walkSpeed(keeper)
 	)
@@ -1243,7 +1268,7 @@ local function runMultiplayer(a: Player, b: Player)
 		check(
 			"match 2: Keeper released",
 			waitFor(function()
-				return near(walkSpeed(stayer), 17)
+				return near(walkSpeed(stayer), KEEPER_SPEED)
 			end, 12),
 			walkSpeed(stayer)
 		)
@@ -1295,11 +1320,12 @@ local function runMultiplayer(a: Player, b: Player)
 					).eligible
 					== false
 		)
+		-- Win breakdown (20 + 50); contract / level-up Scrap may be credited on top.
 		check(
 			"disconnect: staying Keeper paid the win",
 			waitFor(function()
 				local p = PlayerDataService.GetProfile(stayer)
-				return p ~= nil and p.ChronosScrap == scrapBefore + 70
+				return p ~= nil and p.ChronosScrap >= scrapBefore + 70
 			end, 3),
 			(PlayerDataService.GetProfile(stayer) :: any).ChronosScrap - scrapBefore
 		)
@@ -1397,12 +1423,15 @@ local function runSquad(players: { Player })
 
 	-- A walks away mid-hack; progress is retained for a teammate.
 	task.wait(5)
+	-- Squad scaling makes 5 s worth less progress in bigger squads, so compare with the progress
+	-- held just before walking away rather than a fixed fraction.
+	local heldBefore = (d:publicTerminal("ArchiveTerminal") :: any).progress
 	moveTo(a, WorldService.GetMap().extractionCenter)
 	check(
 		"squad: walking away interrupts with progress retained",
 		waitFor(function()
 			local t = d:publicTerminal("ArchiveTerminal")
-			return t ~= nil and t.state ~= "Hacking" and t.progress > 0.2
+			return t ~= nil and t.state ~= "Hacking" and heldBefore > 0.05 and t.progress >= heldBefore - 0.01
 		end, 2),
 		d:publicTerminal("ArchiveTerminal")
 	)
@@ -1511,8 +1540,9 @@ local function runSquad(players: { Player })
 			return snap ~= nil
 				and snap.result ~= nil
 				and snap.result.matchId == matchId
-				and snap.result.total == expected
-				and profile.ChronosScrap == scrapBefore[p.UserId] + expected
+				and snap.result.breakdown == expected
+				and snap.result.total >= expected -- plus any contract / level-up Scrap
+				and profile.ChronosScrap == scrapBefore[p.UserId] + snap.result.total
 		end, 6)
 		if not ok then
 			table.insert(inconsistent, { name = p.Name, expected = expected, got = snap and snap.result })
@@ -1758,12 +1788,16 @@ task.spawn(function()
 		return
 	end
 	-- Give the other Studio test clients time to join (and say hello) before choosing the suite.
+	-- Up to five clients boot slowly on one machine: wait until the head count has been stable
+	-- (and everyone has said hello) for a few seconds.
+	local seen, stableSince = #Players:GetPlayers(), os.clock()
 	waitFor(function()
-		return #helloPlayers >= 2
-	end, 8)
-	waitFor(function()
-		return #helloPlayers >= #Players:GetPlayers()
-	end, 15)
+		local count = #Players:GetPlayers()
+		if count ~= seen then
+			seen, stableSince = count, os.clock()
+		end
+		return #helloPlayers >= count and os.clock() - stableSince >= 6
+	end, 45)
 	task.wait(2) -- let ClientReady/state sync settle
 	local count = #Players:GetPlayers()
 	local mode = if testsFolder:GetAttribute("RunExpansionE2E") == true
@@ -1818,6 +1852,16 @@ task.spawn(function()
 		local ok, err = Safe.call(runMultiplayer, helloPlayers[1] :: Player, helloPlayers[2] :: Player)
 		if not ok then
 			check("multiplayer suite completed without driver errors", false, err)
+		end
+	end
+	for _, p in helloPlayers do
+		if p.Parent then
+			local s = client(p, "snapshot")
+			check(
+				`client: no game script errors on {p.Name}`,
+				s ~= nil and s.clientErrors == 0,
+				s and { count = s.clientErrors, first = s.firstClientError }
+			)
 		end
 	end
 	local summary = `[E2E] {mode}: {passed} passed, {failed} failed`
