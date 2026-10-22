@@ -12,6 +12,12 @@ service/controller architecture with a pure, offline-tested gameplay core.
 
 ## Status
 
+**Survival Evolution** (latest): lag-compensated strikes, off-screen threat indicator, the
+Afterimage decoy gadget, Timeline Conditions, a Field Guide for new players and anonymous balance
+telemetry. In-engine E2E now runs green in Studio (solo, 2-player and full 5-player) —
+[TEST_PLAN](docs/TEST_PLAN.md). Human playtests, device passes and a real DataStore round trip are
+still pending.
+
 **Survival Protocol** implemented on top of the temporal expansion (integrity ladder, containment,
 pursuit, interactive hacking, environmental play, Collapse endgame, perks, survival HUD, atmosphere).
 Offline gates pass; Studio E2E, balance and device validation are pending —

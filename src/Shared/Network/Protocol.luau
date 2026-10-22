@@ -63,6 +63,7 @@ Protocol.Codes = table.freeze({
 	ProfileUnavailable = "ProfileUnavailable",
 	NoTarget = "NoTarget",
 	TooClose = "TooClose",
+	Exhausted = "Exhausted",
 })
 
 Protocol.CodeMessages = table.freeze({
@@ -97,6 +98,7 @@ Protocol.CodeMessages = table.freeze({
 	ProfileUnavailable = "Your profile isn't available right now.",
 	NoTarget = "No Infiltrator in reach.",
 	TooClose = "Too close to another trap or objective.",
+	Exhausted = "Not enough stamina.",
 } :: { [string]: string })
 
 function Protocol.messageFor(code: string): string

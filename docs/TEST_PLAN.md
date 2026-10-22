@@ -1,13 +1,47 @@
 # Test Plan and Results
 
-## Survival Protocol validation (current)
+## Survival Evolution validation (current, 2026-10-22)
+
+**Offline:** `./tools/test.sh` 228 passed / 0 failed (31 spec modules; new: `MatchTelemetry`,
+`Conditions`, `Coach`, plus lag-compensation, position-history and stamina-spend cases);
+`./tools/analyze.sh` clean; production build verified (116 scripts compile, no test code,
+`LoadStringEnabled=false`).
+
+**In-engine (Roblox Studio 0.744, `build/test.rbxl`, Test → Server & Clients), executed:**
+
+| Suite | Players | Result | Notes |
+| --- | --- | --- | --- |
+| Studio TestRunner (unit specs in engine) | — | 228 / 228 | printed at server boot |
+| Solo (keeperless match ×2) | 1 | **120 / 120** | hacking, calibration, extraction, rewards, Field Guide shown, Timeline Condition replicated, no client script errors |
+| Multiplayer (Keeper vs Infiltrator ×2) | 2 | **81 / 81** | strikes, freeze/trap, Echo Scanner, **Afterimage** cast → echo rendered on the Keeper client → cooldown → cleanup, disconnects |
+| Squad (full 1v4) | 5 | **36 / 36** | co-op hacking, interrupts, relay-gated extraction, Keeper leave, consistent payouts, no client script errors on any client |
+
+Evidence: [evidence/survival-evolution-studio.txt](evidence/survival-evolution-studio.txt)
+(verbatim PASS lines, summaries and per-match `[Telemetry]` summaries).
+
+**Defects found by the first in-engine run of the Survival Protocol build and fixed:**
+
+* Toast stack had a fixed 400 px height starting 440 px down, so on viewports under ~860 px its
+  lower toasts were offscreen (layout lint failed on lobby, HUD, hacking HUD and results).
+* Teammate integrity markers lost their label and every refresh threw
+  `attempt to index nil with 'Text'` (~1,500 errors per client in a 5-player match). Markers now
+  rebuild; the pod/relay, teammate and extraction BillboardGuis no longer reset on spawn. The
+  engine-side reason the marker gets destroyed is still unidentified (a one-time warning logs it).
+* E2E driver expectations predating the survival rules (reward totals without contract Scrap,
+  Keeper speed 17 vs 17.25, a fixed hack-progress threshold that ignored squad scaling) and a race
+  that started the solo suite before five clients had joined.
+
+**Not run (needs people, devices or a published place):** real latency play (scenario S3 in
+[BALANCE](BALANCE.md)), human chase/loop feel, Afterimage readability for a human Keeper, touch and
+gamepad passes for the new Afterimage gadget, Field Guide card and threat chevron, real DataStore
+round trip, AnalyticsService custom events (only report from a published experience), low-end
+mobile profiling, and visual review of every map.
+
+## Survival Protocol validation (superseded)
 
 Offline: 215 Lune tests, static analysis and production build pass — see
 [SURVIVAL_RELEASE](SURVIVAL_RELEASE.md) and [evidence/survival-automated.txt](evidence/survival-automated.txt).
-New specs: `Unit/SurvivalModels`, `Unit/WorldObjects`, `Unit/Perks`, `Integration/Survival`;
-rewritten: `Unit/HackChallenge`, `Integration/ExpandedHacking`, contract and map validator specs.
-In-engine E2E (solo / 2-player / squad / expansion) was **updated but Not run**: the Studio MCP
-connection was unavailable in the implementing session. Results below predate the survival rules.
+In-engine E2E was updated but not run in that session; it has now run (above).
 
 ## Current expansion validation
 

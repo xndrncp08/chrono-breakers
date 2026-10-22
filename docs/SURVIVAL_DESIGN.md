@@ -63,6 +63,20 @@ Health bars mirror the step (server-owned; Humanoids are never killed by gamepla
   the Keeper a 1.8 s recoil slow; a whiff costs a 0.9 s recovery slow. Hits interrupt hacks and
   every channel.
 
+* **Fair hits under latency:** the server keeps a 1 s trail of free Infiltrators and also judges a
+  swing against where the Keeper saw the target (Keeper round trip + 0.1 s replication buffer,
+  capped at 0.25 s). Line of sight is always judged at the target's *current* position and the
+  target must still be within range + 3 studs, so nobody is hit through a corner they already
+  rounded or from far behind them.
+* **Threat direction:** while Resonance or a chase is active and the Keeper is off-screen, a chevron
+  on the screen edge points at them (a visual twin of the spatial audio for players who cannot
+  hear it); it turns solid when a strike winds up within 16 studs.
+* **Afterimage (gadget, 200 Scrap, 40 s):** pay 35 stamina to shed a ghost of yourself that keeps
+  running your heading for 3 s and leaves Keeper residue, while your own residue goes quiet.
+  Counterplay: the cast chimes and rings at the cast point; the echo stops at walls, shimmers up
+  close, shatters on a Chrono Strike (the Keeper still pays the whiff recovery) and inside any
+  Chrono Pulse. It is strongest right after breaking line of sight — a prediction tool, not speed.
+
 ## Environment
 
 Per map (authored in `MapLayout`, checked by `MapValidator`): five terminals (four required),
@@ -94,6 +108,25 @@ shockwave every 10 s reveals free Infiltrators to the Keeper. When the timer end
 inside is Erased. If a single Infiltrator is left in play before the Collapse, a **Slip Rift** opens
 at a far anomaly site: a 2 s channel escapes; the Keeper can seal it (1.5 s), which starts the
 Collapse early. Outcomes play short camera sequences (escape lift, erasure glitch, Keeper victory).
+
+## Timeline Conditions
+
+Each match rolls one condition (`ConditionConfig`, weights in the file; disable with
+`ServerConfig.TimelineConditions.Enabled`). It is shown on the deployment card and under the HUD
+objectives. Every condition gives one side something and the other side something back, reusing
+perk modifier keys so the owning systems apply it with no special cases:
+
+| Condition | Effect |
+| --- | --- |
+| Stable Timeline (weight 4) | none |
+| Accelerated Entropy | hacks +15% speed; pods drain +20% |
+| Overcharged Pulses | calibration arcs +20%; misses cost +40% |
+| Brittle Seconds | barrier stuns +25%; Keeper hit recoil −20% |
+| Mending Loop | Re-sync/Patch +20%; Overload regression +50% |
+| Restless Echoes | stamina regen +20%; calibration traces last +50% |
+
+`ForceTimelineCondition` (server attribute on ServerScriptService) pins one; the E2E driver pins
+Stable.
 
 ## Progression (no pay-to-win)
 

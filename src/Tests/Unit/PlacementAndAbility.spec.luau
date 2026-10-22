@@ -2,6 +2,7 @@
 local ServerScriptService = game:GetService("ServerScriptService")
 local AbilityRules = require(ServerScriptService.Server.Core.AbilityRules)
 local PlacementRules = require(ServerScriptService.Server.Core.PlacementRules)
+local PositionHistory = require(ServerScriptService.Server.Core.PositionHistory)
 
 local BOUNDS_MIN = Vector3.new(-90, -5, -90)
 local BOUNDS_MAX = Vector3.new(90, 40, 90)
@@ -197,6 +198,55 @@ return function(t: any)
 					return false
 				end
 			)).toBeNil()
+		end)
+		t.it("lag compensation: hits where the Keeper saw the target, within slack", function()
+			-- Target sidestepped out of the cone after the Keeper aimed at where they were.
+			t.expect(AbilityRules.selectStrikeTarget(origin, aim, {
+				{ userId = 1, position = Vector3.new(7, 3, -4), rewound = Vector3.new(1, 3, -5) },
+			}, 9, 70, always, 3)).toBe(1)
+			-- Without rewind data the same swing whiffs.
+			t.expect(AbilityRules.selectStrikeTarget(origin, aim, {
+				{ userId = 1, position = Vector3.new(7, 3, -4) },
+			}, 9, 70, always, 3)).toBeNil()
+			-- Already far beyond range + slack: the old position no longer counts.
+			t.expect(AbilityRules.selectStrikeTarget(origin, aim, {
+				{ userId = 1, position = Vector3.new(0, 3, -13), rewound = Vector3.new(0, 3, -8) },
+			}, 9, 70, always, 3)).toBeNil()
+		end)
+
+		t.it("lag compensation never hits through cover at the current position", function()
+			t.expect(AbilityRules.selectStrikeTarget(
+				origin,
+				aim,
+				{
+					{ userId = 1, position = Vector3.new(6, 3, -6), rewound = Vector3.new(0, 3, -5) },
+				},
+				9,
+				70,
+				function(c)
+					return c.position.X < 3 -- the target has rounded a wall
+				end,
+				3
+			)).toBeNil()
+		end)
+	end)
+
+	t.describe("PositionHistory", function()
+		t.it("interpolates, clamps and expires samples", function()
+			local h = PositionHistory.new(1)
+			t.expect(h:sample(1, 0)).toBeNil()
+			h:record(1, 10, Vector3.new(0, 0, 0))
+			h:record(1, 10.1, Vector3.new(10, 0, 0))
+			t.expect((h:sample(1, 10.05) :: Vector3).X).toBeNear(5)
+			t.expect((h:sample(1, 9) :: Vector3).X).toBeNear(0)
+			t.expect((h:sample(1, 11) :: Vector3).X).toBeNear(10)
+			for i = 1, 30 do
+				h:record(1, 10.1 + i * 0.1, Vector3.new(10 + i, 0, 0))
+			end
+			-- Older than the window: clamps to the oldest kept sample, not the dropped one.
+			t.expect((h:sample(1, 10) :: Vector3).X).toBeGreaterThan(25)
+			h:forget(1)
+			t.expect(h:sample(1, 13)).toBeNil()
 		end)
 	end)
 end

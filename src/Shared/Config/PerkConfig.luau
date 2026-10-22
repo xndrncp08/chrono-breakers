@@ -4,7 +4,7 @@
 -- never be bought, so they are side-grades rather than pay-to-win. Each perk is a set of
 -- multiplicative modifiers read by the systems that own the rule (default 1).
 --
--- Modifier keys: SurgeDuration, CalibrationArc, MissPenalty, SelfHeal (flag), VaultSpeed,
+-- Modifier keys: HackSpeed, SurgeDuration, CalibrationArc, MissPenalty, SelfHeal (flag), VaultSpeed,
 -- StaminaRegen, VeilDuration, LockerEnter, Relay, Revive, Heal, Endurance (granted to the rescued),
 -- SlipstreamCooldown, EmpRadius, BarrierStun, LandingHaste (flag), Recoil, Regression,
 -- RevealRescuer (flag), PodDrain, TraceDuration, TrapStun.

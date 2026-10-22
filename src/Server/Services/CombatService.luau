@@ -5,9 +5,11 @@
 -- victim an escape burst and the Keeper a recoil; a whiff costs a short recovery. Striking a target
 -- slowed by a Time-Freeze Zone or Temporal Trap also reveals them to the Keeper (ability combo).
 -- Damage attribution is bounded (DamageAttributionWindow) and cleared at match end.
+-- Hits are lag-compensated against a short position history (see AbilityRules.selectStrikeTarget).
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
 local Workspace = game:GetService("Workspace")
 
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
@@ -18,12 +20,14 @@ local Safe = require(ReplicatedStorage.Shared.Modules.Safe)
 local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
 
 local AbilityRules = require(script.Parent.Parent.Core.AbilityRules)
+local PositionHistory = require(script.Parent.Parent.Core.PositionHistory)
 local ServerConfig = require(script.Parent.Parent.ServerConfig)
 
 local CombatService = {}
 
 local deps: { [string]: any } = {}
 local attribution: { [Player]: { by: number, at: number } } = {}
+local history = PositionHistory.new(SurvivalConfig.Strike.HistoryWindow)
 
 local strike = SurvivalConfig.Strike
 
@@ -35,7 +39,31 @@ function CombatService.Init(injected: { [string]: any })
 	deps = injected
 	Players.PlayerRemoving:Connect(function(player)
 		attribution[player] = nil
+		history:forget(player.UserId)
 	end)
+end
+
+function CombatService.Start()
+	RunService.Heartbeat:Connect(function()
+		local phase = deps.MatchService.GetPhase()
+		if phase ~= "Active" and phase ~= "Extraction" then
+			return
+		end
+		local t = now()
+		for _, target in deps.MatchService.GetFreeInfiltrators() do
+			local root = target.Character and target.Character:FindFirstChild("HumanoidRootPart") :: BasePart?
+			if root then
+				history:record(target.UserId, t, root.Position)
+			end
+		end
+	end)
+end
+
+-- How far back the Keeper's view of other players lags the server, bounded for fairness.
+local function rewindFor(caster: Player): number
+	local ok, ping = pcall(caster.GetNetworkPing, caster)
+	local roundTrip = if ok and type(ping) == "number" then ping else 0
+	return math.clamp(roundTrip + strike.InterpolationDelay, 0, strike.MaxRewind)
 end
 
 function CombatService.GetAttribution(victim: Player): number?
@@ -48,6 +76,7 @@ end
 
 function CombatService.EndMatch()
 	table.clear(attribution)
+	history:clear()
 end
 
 local function selfSlow(caster: Player, key: string, magnitude: number, duration: number, source: string)
@@ -76,6 +105,7 @@ local function resolve(caster: Player, aim: Vector3, matchId: string?)
 	end
 	local origin = root.Position
 	local eye = origin + Vector3.new(0, ServerConfig.Combat.EyeHeight, 0)
+	local seenAt = now() - rewindFor(caster)
 
 	local candidates: { AbilityRules.StrikeCandidate } = {}
 	local byUserId: { [number]: Player } = {}
@@ -84,7 +114,11 @@ local function resolve(caster: Player, aim: Vector3, matchId: string?)
 		local targetRoot = targetCharacter and targetCharacter:FindFirstChild("HumanoidRootPart") :: BasePart?
 		local humanoid = targetCharacter and targetCharacter:FindFirstChildOfClass("Humanoid")
 		if targetRoot and humanoid and humanoid.Health > 0 and not deps.InteractionService.IsHidden(target) then
-			table.insert(candidates, { userId = target.UserId, position = targetRoot.Position })
+			table.insert(candidates, {
+				userId = target.UserId,
+				position = targetRoot.Position,
+				rewound = history:sample(target.UserId, seenAt),
+			})
 			byUserId[target.UserId] = target
 		end
 	end
@@ -97,7 +131,8 @@ local function resolve(caster: Player, aim: Vector3, matchId: string?)
 		definition.ConeAngleDegrees,
 		function(c)
 			return deps.WorldService.HasLineOfSight(eye, c.position)
-		end
+		end,
+		strike.RewindSlack
 	)
 
 	deps.NetworkService.FireList(RemoteNames.Effect, deps.MatchService.GetParticipants(), {

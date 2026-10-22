@@ -40,6 +40,7 @@ type Marker = {
 
 local markers: { [string]: Marker } = {}
 local teammates: { [number]: BillboardGui } = {}
+local loggedLostLabel = false
 local extractionMarker: BillboardGui? = nil
 local markerFolder: Folder? = nil
 local resetDisabled = false
@@ -242,6 +243,7 @@ local function worldMarker(adornee: Instance, color: Color3): WorldMarker
 		return existing
 	end
 	local gui = Create("BillboardGui", {
+		ResetOnSpawn = false, -- lives in PlayerGui; a respawn must not destroy it
 		Name = "SurvivalMarker",
 		Adornee = adornee,
 		AlwaysOnTop = true,
@@ -395,9 +397,22 @@ local function refreshMarkers()
 			local humanoid = character and character:FindFirstChildOfClass("Humanoid")
 			if allyRoot and humanoid then
 				seen[participant.userId] = true
-				local gui = teammates[participant.userId]
+				local gui: BillboardGui? = teammates[participant.userId]
+				if gui and not gui:FindFirstChild("Label") then
+					-- A marker that lost its label (destroyed under us) is rebuilt instead of erroring.
+					if not loggedLostLabel then
+						loggedLostLabel = true
+						warn(
+							`[InteractionController] teammate marker lost its label (parent={gui.Parent}, children={#gui:GetChildren()})`
+						)
+					end
+					gui:Destroy()
+					gui = nil
+					teammates[participant.userId] = nil
+				end
 				if not gui then
 					gui = Create("BillboardGui", {
+						ResetOnSpawn = false, -- lives in PlayerGui; a respawn must not destroy it
 						Name = "Teammate",
 						Adornee = allyRoot,
 						AlwaysOnTop = true,
@@ -415,15 +430,16 @@ local function refreshMarkers()
 					})
 					teammates[participant.userId] = gui
 				end
-				gui.Adornee = allyRoot
-				local label = gui:FindFirstChild("Label") :: TextLabel
+				local marker = gui :: BillboardGui
+				marker.Adornee = allyRoot
+				local label = marker:FindFirstChild("Label") :: TextLabel
 				local class = ClassConfig.get(participant.classId)
 				local condition = participant.condition or "Healthy"
 				label.Text = `{participant.name} · {SurvivalConfig.ConditionNames[condition] or condition}`
 				label.TextColor3 = if condition == "Healthy"
 					then (if class then class.Color else Theme.Colors.Stable)
 					else (Theme.ConditionColors :: any)[condition]
-				gui.Enabled = condition ~= "Downed" -- Desynced allies get the stronger aura marker
+				marker.Enabled = condition ~= "Downed" -- Desynced allies get the stronger aura marker
 			end
 		end
 	end
@@ -507,6 +523,7 @@ local function createExtractionMarker()
 		extractionMarker:Destroy()
 	end
 	local gui = Create("BillboardGui", {
+		ResetOnSpawn = false, -- lives in PlayerGui; a respawn must not destroy it
 		Name = "ExtractionMarker",
 		Adornee = pad,
 		AlwaysOnTop = true,

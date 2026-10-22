@@ -10,6 +10,7 @@ local RunService = game:GetService("RunService")
 local SurvivalConfig = require(ReplicatedStorage.Shared.Config.SurvivalConfig)
 local ClassConfig = require(ReplicatedStorage.Shared.Config.ClassConfig)
 local AnomalyConfig = require(ReplicatedStorage.Shared.Config.AnomalyConfig)
+local ConditionConfig = require(ReplicatedStorage.Shared.Config.ConditionConfig)
 local AbilityConfig = require(ReplicatedStorage.Shared.Config.AbilityConfig)
 local TerminalConfig = require(ReplicatedStorage.Shared.Config.TerminalConfig)
 local Theme = require(ReplicatedStorage.Shared.Config.Theme)
@@ -311,6 +312,18 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 	anomalyLabel.Parent = objectives
 	anomalyLabel.Size = UDim2.new(1, 0, 0, 40)
 	anomalyLabel.LayoutOrder = 6
+	-- Timeline Condition for this match (hidden when Stable).
+	local conditionLabel = Style.text({
+		Name = "Condition",
+		Text = "",
+		TextSize = Theme.TextSize.Micro,
+		Color = Theme.Colors.Temporal,
+		RichText = true,
+		Size = UDim2.fromScale(1, 0),
+		AutomaticSize = Enum.AutomaticSize.Y,
+		LayoutOrder = 6,
+		Parent = objectives,
+	})
 	local abilityBar = AbilityBar.new(root, deps)
 
 	local function layout()
@@ -347,6 +360,11 @@ function HudScreen.new(parent: Instance, deps: { [string]: any })
 		local snapshot = ClientState.get("snapshot")
 		if not snapshot then
 			return
+		end
+		local condition = ConditionConfig.get(snapshot.condition)
+		conditionLabel.Visible = condition ~= nil and condition.Id ~= "Stable"
+		if condition and conditionLabel.Visible then
+			conditionLabel.Text = `<b>◇ {string.upper(condition.Name)}</b>\n{condition.Description}`
 		end
 		local anomaly = snapshot.anomaly
 		anomalyLabel.Visible = anomaly ~= nil

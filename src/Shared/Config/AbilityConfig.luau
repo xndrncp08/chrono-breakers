@@ -184,10 +184,24 @@ AbilityConfig.Abilities = table.freeze({
 		GamepadKey = "ButtonL1",
 		RevealDuration = 4,
 	} :: AbilityDefinition),
+	Afterimage = table.freeze({
+		Id = "Afterimage",
+		DisplayName = "Afterimage",
+		Description = "Shed a running time-echo that keeps your heading while your own trail goes quiet. Costs stamina; a Chrono Pulse or a strike shatters it.",
+		Role = "Infiltrator",
+		Cooldown = 40,
+		TargetMode = "None",
+		KeyboardKey = "Q",
+		GamepadKey = "ButtonL1",
+		Duration = 3, -- echo lifetime and how long the caster's residue is suppressed
+		StaminaCost = 35,
+		MinSpeed = 12, -- the echo runs at the caster's speed, clamped to this range
+		MaxSpeed = 22,
+	} :: AbilityDefinition),
 })
 
 AbilityConfig.KeeperAbilityOrder = table.freeze({ "ChronoStrike", "TimeFreeze", "TemporalTrap", "ChronoScan" })
-AbilityConfig.GadgetIds = table.freeze({ "Stabilizer", "PhaseDash", "EchoScanner" })
+AbilityConfig.GadgetIds = table.freeze({ "Stabilizer", "PhaseDash", "EchoScanner", "Afterimage" })
 
 function AbilityConfig.get(abilityId: string): AbilityDefinition?
 	return (AbilityConfig.Abilities :: any)[abilityId]

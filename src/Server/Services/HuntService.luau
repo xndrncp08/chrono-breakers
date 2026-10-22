@@ -146,6 +146,7 @@ local function updateChase()
 	end
 	for _, event in chase:update(now(), samples) do
 		sendChase(event.userId, event.kind == "ChaseStarted")
+		deps.TelemetryService.Chase(event.userId, event.kind == "ChaseStarted")
 	end
 	applyMomentum()
 end
@@ -193,6 +194,16 @@ local function tick(dt: number)
 		chaseAccumulator = 0
 		updateChase()
 	end
+end
+
+-- Pays a gadget's stamina cost; false while exhausted, short, or outside a match.
+function HuntService.SpendStamina(player: Player, amount: number): boolean
+	local entry = stamina[player]
+	if not entry or not entry.model:spend(now(), amount) then
+		return false
+	end
+	sendStamina(player, entry, true)
+	return true
 end
 
 function HuntService.IsChased(player: Player): boolean
