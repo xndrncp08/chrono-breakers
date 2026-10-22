@@ -49,6 +49,13 @@ SurvivalConfig.Strike = table.freeze({
 	SurgeDuration = 1.8,
 	SurgeHaste = 0.45,
 	FractureRevealDuration = 5, -- combo: striking a time-slowed target reveals them
+	-- Lag compensation: the server also judges a swing against where the Keeper saw the target
+	-- (Keeper round trip + replication buffer, capped) while the target's current position must stay
+	-- in sight and within Range + RewindSlack.
+	InterpolationDelay = 0.1,
+	MaxRewind = 0.25,
+	RewindSlack = 3,
+	HistoryWindow = 1,
 })
 
 SurvivalConfig.Chase = table.freeze({

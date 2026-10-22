@@ -7,6 +7,11 @@
 --   * Keeper tracking: running Infiltrators leave short-lived temporal residue only the Keeper sees;
 --     Fractured Infiltrators spark and groan (spatial) for everyone.
 --   * Chase distortion: colour grade and a gentle FOV push while pursued (off with ReducedMotion).
+--   * Afterimage echoes: a ghost clone of the caster runs their old heading for a few seconds,
+--     leaving Keeper residue while the caster's own residue is suppressed. It stops at walls and
+--     shatters on a nearby Chrono Strike or inside a Chrono Pulse. Allies see it tinted.
+--   * Threat direction: while the Keeper is close or chasing but off-screen, ClientState "threat"
+--     holds their screen bearing so the overlay can point at them (a visual twin of spatial audio).
 
 local Debris = game:GetService("Debris")
 local Lighting = game:GetService("Lighting")
@@ -34,6 +39,18 @@ local groanAt: { [number]: number } = {}
 local sparkAt: { [number]: number } = {}
 local baseFov = 70
 local MAX_RESIDUE = 120
+
+type Echo = {
+	model: Model,
+	root: BasePart,
+	direction: Vector3,
+	speed: number,
+	hover: number,
+	expires: number,
+	highlight: Highlight,
+	dying: boolean,
+}
+local echoes: { Echo } = {}
 
 local function reducedMotion(): boolean
 	local settings = ClientState.get("settings")
@@ -77,6 +94,45 @@ local function computeResonance(): number
 	return raw * raw * (3 - 2 * raw) -- smoothstep: gentle at the edge, urgent up close
 end
 
+local lastThreat: { angle: number, strength: number }? = nil
+
+-- Bearing of the Keeper relative to the camera (0 = straight ahead, clockwise positive), published
+-- only while they are off-screen; throttled so the overlay is not re-rendered every frame.
+local function updateThreat(resonance: number, chased: boolean)
+	local keeper = keeperRoot()
+	local camera = Workspace.CurrentCamera
+	local strength = math.max(resonance, if chased then 0.6 else 0)
+	local threat: { angle: number, strength: number }? = nil
+	if keeper and camera and strength > 0.15 then
+		local _, onScreen = camera:WorldToViewportPoint(keeper.Position)
+		if not onScreen then
+			local look = camera.CFrame.LookVector
+			local offset = keeper.Position - camera.CFrame.Position
+			local forward = Vector3.new(look.X, 0, look.Z)
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			if forward.Magnitude > 1e-3 and flat.Magnitude > 1e-3 then
+				forward, flat = forward.Unit, flat.Unit
+				local angle = math.atan2(forward.X * flat.Z - forward.Z * flat.X, forward:Dot(flat))
+				threat = { angle = angle, strength = strength }
+			end
+		end
+	end
+	local previous = lastThreat
+	local changed = (threat == nil) ~= (previous == nil)
+		or (
+			threat ~= nil
+			and previous ~= nil
+			and (
+				math.abs(threat.angle - previous.angle) > math.rad(4)
+				or math.abs(threat.strength - previous.strength) > 0.05
+			)
+		)
+	if changed then
+		lastThreat = threat
+		ClientState.set("threat", threat)
+	end
+end
+
 local function heartbeat(resonance: number)
 	local now = os.clock()
 	if resonance <= 0.01 or now < nextBeatAt then
@@ -90,6 +146,19 @@ local function heartbeat(resonance: number)
 		audio.Play("HeartbeatSoft", { volume = 0.3 + 0.6 * resonance })
 	end)
 	ClientState.set("lastHeartbeat", now)
+end
+
+local function groundParams(): RaycastParams
+	local params = RaycastParams.new()
+	params.FilterType = Enum.RaycastFilterType.Exclude
+	local ignore: { Instance } = { residueFolder :: Folder }
+	for _, other in Players:GetPlayers() do
+		if other.Character then
+			table.insert(ignore, other.Character)
+		end
+	end
+	params.FilterDescendantsInstances = ignore
+	return params
 end
 
 local function spawnResidue(position: Vector3, color: Color3)
@@ -132,6 +201,170 @@ local function spark(position: Vector3)
 	Debris:AddItem(fleck, 1)
 end
 
+local function dissolve(echo: Echo)
+	if echo.dying then
+		return
+	end
+	echo.dying = true
+	for _, part in echo.model:GetDescendants() do
+		if part:IsA("BasePart") and part.Transparency < 1 then
+			TweenService:Create(part, TweenInfo.new(0.35), { Transparency = 1 }):Play()
+		end
+	end
+	Debris:AddItem(echo.model, 0.4)
+end
+
+-- Ghost clone of a character: scripts, sounds and labels stripped, everything non-colliding, the
+-- root anchored so the rig can be animated in place and moved along the ground by hand.
+local function buildEcho(character: Model, ally: boolean): (Model?, Highlight?)
+	local archivable = character.Archivable
+	character.Archivable = true
+	local ok, clone = pcall(character.Clone, character)
+	character.Archivable = archivable
+	if not ok or not clone then
+		return nil, nil
+	end
+	local model = clone :: Model
+	for _, item in model:GetDescendants() do
+		if
+			item:IsA("BaseScript")
+			or item:IsA("Sound")
+			or item:IsA("BillboardGui")
+			or item:IsA("Highlight")
+			or item:IsA("ForceField")
+			or item:IsA("ParticleEmitter")
+		then
+			item:Destroy()
+		elseif item:IsA("BasePart") then
+			item.CanCollide, item.CanQuery, item.CanTouch = false, false, false
+			item.CastShadow = false
+			item.Anchored = item.Name == "HumanoidRootPart"
+		end
+	end
+	local humanoid = model:FindFirstChildOfClass("Humanoid")
+	if humanoid then
+		humanoid.DisplayDistanceType = Enum.HumanoidDisplayDistanceType.None
+		humanoid.HealthDisplayType = Enum.HumanoidHealthDisplayType.AlwaysOff
+		humanoid.EvaluateStateMachine = false
+		-- Borrow the original Animate script's run animation so the echo actually runs.
+		local animate = character:FindFirstChild("Animate")
+		local run = animate and animate:FindFirstChild("run")
+		local animation = run and run:FindFirstChildOfClass("Animation")
+		local animator = humanoid:FindFirstChildOfClass("Animator")
+		if animation and animator then
+			pcall(function()
+				animator:LoadAnimation(animation):Play(0.1)
+			end)
+		end
+	end
+	model:SetAttribute("Echo", true)
+	local glow = Instance.new("Highlight")
+	glow.FillColor = Theme.Colors.Temporal
+	glow.OutlineColor = Theme.Colors.Temporal
+	glow.FillTransparency = if ally then 0.6 else 1
+	glow.OutlineTransparency = if ally then 0.2 else 1
+	glow.DepthMode = Enum.HighlightDepthMode.Occluded
+	glow.Parent = model
+	return model, glow
+end
+
+function PursuitController.Afterimage(payload: any)
+	local caster = Players:GetPlayerByUserId(payload.userId)
+	local character = caster and caster.Character
+	local root = character and character:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not character or not root or typeof(payload.direction) ~= "Vector3" then
+		return
+	end
+	local role = ClientState.currentRole()
+	local ally = role ~= nil and role.role == "Infiltrator"
+	local model, glow = buildEcho(character, ally)
+	if not model or not glow then
+		return
+	end
+	local echoRoot = model:FindFirstChild("HumanoidRootPart") :: BasePart?
+	if not echoRoot then
+		model:Destroy()
+		return
+	end
+	local direction = Vector3.new(payload.direction.X, 0, payload.direction.Z)
+	direction = if direction.Magnitude > 1e-3 then direction.Unit else Vector3.zAxis
+	echoRoot.CFrame = CFrame.lookAt(root.Position, root.Position + direction)
+	local ground = Workspace:Raycast(root.Position, Vector3.new(0, -12, 0), groundParams())
+	model.Parent = residueFolder
+	table.insert(echoes, {
+		model = model,
+		root = echoRoot,
+		direction = direction,
+		speed = tonumber(payload.speed) or 16,
+		hover = if ground then root.Position.Y - ground.Position.Y else 3,
+		expires = os.clock() + (tonumber(payload.duration) or 3),
+		highlight = glow,
+		dying = false,
+	})
+end
+
+-- A Keeper strike shatters any echo it would have hit (the Keeper still pays the whiff recovery).
+function PursuitController.StrikeEchoes(origin: Vector3, direction: Vector3)
+	local aim = Vector3.new(direction.X, 0, direction.Z)
+	if aim.Magnitude < 1e-3 then
+		return
+	end
+	aim = aim.Unit
+	for _, echo in echoes do
+		local offset = echo.root.Position - origin
+		local flat = Vector3.new(offset.X, 0, offset.Z)
+		if flat.Magnitude <= 10 and (flat.Magnitude < 1.5 or flat.Unit:Dot(aim) > 0.5) then
+			dissolve(echo)
+		end
+	end
+end
+
+function PursuitController.DispelEchoes(position: Vector3, radius: number)
+	for _, echo in echoes do
+		if (echo.root.Position - position).Magnitude <= radius then
+			dissolve(echo)
+		end
+	end
+end
+
+local function updateEchoes(dt: number)
+	local now = os.clock()
+	local camera = Workspace.CurrentCamera
+	for i = #echoes, 1, -1 do
+		local echo = echoes[i]
+		if echo.dying or not echo.model.Parent then
+			if not echo.model.Parent then
+				table.remove(echoes, i)
+			end
+			continue
+		end
+		if now >= echo.expires then
+			dissolve(echo)
+			continue
+		end
+		local params = groundParams()
+		local position = echo.root.Position
+		-- Echoes cannot pass through geometry: a wall ahead dissolves them.
+		if Workspace:Raycast(position, echo.direction * 2.5, params) then
+			dissolve(echo)
+			continue
+		end
+		local nextPosition = position + echo.direction * echo.speed * dt
+		local ground = Workspace:Raycast(nextPosition + Vector3.new(0, 3, 0), Vector3.new(0, -12, 0), params)
+		if ground then
+			nextPosition = Vector3.new(nextPosition.X, ground.Position.Y + echo.hover, nextPosition.Z)
+		end
+		echo.root.CFrame = CFrame.lookAt(nextPosition, nextPosition + echo.direction)
+		-- Up close the echo shimmers: the tell a careful Keeper can read.
+		if camera and not reducedMotion() then
+			local distance = (camera.CFrame.Position - nextPosition).Magnitude
+			if distance < 14 and echo.highlight.OutlineTransparency > 0.3 then
+				echo.highlight.OutlineTransparency = 0.45 + 0.4 * math.abs(math.sin(now * 9))
+			end
+		end
+	end
+end
+
 -- Keeper-only residue and everyone's Fractured cues, at ~6 Hz.
 local function trackingCues(now: number)
 	local role = ClientState.currentRole()
@@ -142,7 +375,13 @@ local function trackingCues(now: number)
 		end
 		local root = rootOf(p.userId)
 		local character = root and root.Parent
-		if not root or not character or character:GetAttribute("Hidden") or character:GetAttribute("ChronoCloaked") then
+		if
+			not root
+			or not character
+			or character:GetAttribute("Hidden")
+			or character:GetAttribute("ChronoCloaked")
+			or character:GetAttribute("Afterimage")
+		then
 			continue
 		end
 		local velocity = root.AssemblyLinearVelocity
@@ -160,6 +399,13 @@ local function trackingCues(now: number)
 			if now >= (groanAt[p.userId] or 0) then
 				groanAt[p.userId] = now + 4 + math.random() * 3
 				deps.AudioController.Play("Groan", { position = root.Position, range = 60 })
+			end
+		end
+	end
+	if role and role.role == "TimeKeeper" and live then
+		for _, echo in echoes do
+			if not echo.dying then
+				spawnResidue(echo.root.Position - Vector3.new(0, echo.hover, 0), Theme.Colors.Temporal)
 			end
 		end
 	end
@@ -230,6 +476,10 @@ function PursuitController.Start()
 		end
 		local chased = ClientState.get("chased") == true
 		heartbeat(math.max(resonance, if chased then 0.85 else 0))
+		updateThreat(resonance, chased)
+		if #echoes > 0 then
+			updateEchoes(dt)
+		end
 		updateGrade(resonance, chased, dt)
 		local now = os.clock()
 		if now >= residueAt then

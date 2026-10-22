@@ -17,6 +17,8 @@ export type StaminaModel = {
 	-- Returns true when the sprinting state changed.
 	tick: (self: StaminaModel, now: number, dt: number, moving: boolean, allowed: boolean) -> boolean,
 	fraction: (self: StaminaModel) -> number,
+	-- Pays `amount` up front (gadgets); fails while exhausted or short. Delays regeneration.
+	spend: (self: StaminaModel, now: number, amount: number) -> boolean,
 }
 
 local StaminaModel = {}
@@ -60,6 +62,15 @@ function StaminaModel.new(maxMultiplier: number?, regenMultiplier: number?): Sta
 
 	function self:fraction(): number
 		return self.value / self.max
+	end
+
+	function self:spend(now: number, amount: number): boolean
+		if self.exhausted or self.value < amount then
+			return false
+		end
+		self.value -= amount
+		lastDrainAt = now
+		return true
 	end
 
 	return self :: StaminaModel

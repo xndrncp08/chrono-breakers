@@ -184,6 +184,12 @@ local function onEffect(payload: any)
 				highlight(victim, Theme.Colors.Temporal, payload.duration or 3)
 			end
 		end
+	elseif kind == "Afterimage" then
+		deps.PursuitController.Afterimage(payload)
+	elseif kind == "EchoesDispelled" then
+		if typeof(payload.position) == "Vector3" and type(payload.radius) == "number" then
+			deps.PursuitController.DispelEchoes(payload.position, payload.radius)
+		end
 	elseif kind == KINDS.Strike then
 		if payload.position and payload.direction then
 			local origin = payload.position + payload.direction * 4
@@ -202,6 +208,7 @@ local function onEffect(payload: any)
 			slash.Parent = effectsFolder
 			TweenService:Create(slash, TweenInfo.new(0.25), { Transparency = 1 }):Play()
 			Debris:AddItem(slash, 0.3)
+			deps.PursuitController.StrikeEchoes(payload.position, payload.direction)
 		end
 		audio.Play("Strike")
 	elseif kind == KINDS.Hit then
@@ -287,6 +294,9 @@ function EffectsController.Survival(kind: string, payload: any)
 			TweenService:Create(wedge, TweenInfo.new(payload.duration or 0.2), { Transparency = 0.15 }):Play()
 			Debris:AddItem(wedge, (payload.duration or 0.2) + 0.1)
 			audio.Play("StrikeWindup", { position = payload.position, range = 70 })
+			if localRole() == "Infiltrator" and near(payload.position, 16) then
+				ClientState.set("strikeWarnAt", os.clock())
+			end
 		end
 	elseif kind == "Condition" then
 		local character = characterOf(payload.userId)

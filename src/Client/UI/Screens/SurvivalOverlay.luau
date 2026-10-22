@@ -94,6 +94,21 @@ function SurvivalOverlay.new(parent: Instance): SurvivalOverlay
 		Parent = root,
 	})
 
+	-- Threat indicator: a chevron on an ellipse around the screen centre pointing at an off-screen
+	-- Keeper (ClientState "threat"); it turns solid red when a strike is winding up nearby.
+	local threatArrow = Style.text({
+		Name = "ThreatArrow",
+		Text = "▲",
+		Font = Theme.Fonts.Display,
+		TextSize = Theme.TextSize.Title,
+		Color = Theme.Colors.Danger,
+		AnchorPoint = Vector2.new(0.5, 0.5),
+		Size = UDim2.fromOffset(44, 44),
+		XAlign = Enum.TextXAlignment.Center,
+		Parent = root,
+	})
+	threatArrow.Visible = false
+
 	-- Desynced / In Stasis banner
 	local banner = Style.panel({
 		Name = "StateBanner",
@@ -198,6 +213,22 @@ function SurvivalOverlay.new(parent: Instance): SurvivalOverlay
 			frame.BackgroundColor3 = tintColor
 		end
 		pursued.Visible = chased and not isKeeper
+
+		local threat = ClientState.get("threat")
+		local strikeWarn = os.clock() - (ClientState.get("strikeWarnAt") or -10) < 0.5
+		if threat and not isKeeper and condition ~= "Contained" then
+			-- angle 0 = ahead (top of screen); x grows to the right
+			threatArrow.Position =
+				UDim2.fromScale(0.5 + math.sin(threat.angle) * 0.36, 0.5 - math.cos(threat.angle) * 0.36)
+			threatArrow.Rotation = math.deg(threat.angle)
+			threatArrow.TextTransparency = if strikeWarn then 0 else 0.55 - 0.45 * threat.strength
+			threatArrow.TextSize = if strikeWarn and not reducedMotion
+				then Theme.TextSize.Hero
+				else Theme.TextSize.Title
+			threatArrow.Visible = true
+		else
+			threatArrow.Visible = false
+		end
 
 		-- State banner
 		if condition == "Downed" and me then
