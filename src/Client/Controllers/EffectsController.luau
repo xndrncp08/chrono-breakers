@@ -331,6 +331,9 @@ function EffectsController.Survival(kind: string, payload: any)
 			shake(0.4, 0.25)
 		end
 	elseif kind == "KeeperStunned" then
+		if payload.userId == player.UserId then
+			ClientState.set("keeperStunnedAt", os.clock())
+		end
 		local keeper = characterOf(payload.userId)
 		if keeper then
 			highlight(keeper, Theme.Colors.Warning, payload.duration or 2)

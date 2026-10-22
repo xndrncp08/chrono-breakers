@@ -14,6 +14,7 @@ local Protocol = require(ReplicatedStorage.Shared.Network.Protocol)
 
 local ClientState = require(script.Parent.Parent.ClientState)
 local CareerScreen = require(script.Parent.Parent.UI.Screens.CareerScreen)
+local CoachCard = require(script.Parent.Parent.UI.Screens.CoachCard)
 local ConnectionOverlay = require(script.Parent.Parent.UI.Screens.ConnectionOverlay)
 local Create = require(script.Parent.Parent.UI.Components.Create)
 local DeploymentScreen = require(script.Parent.Parent.UI.Screens.DeploymentScreen)
@@ -30,6 +31,7 @@ local UIController = {}
 local player = Players.LocalPlayer
 local deps: { [string]: any } = {}
 local screenGui: ScreenGui? = nil
+local coach: CoachCard.CoachCard? = nil
 local uiScale: UIScale? = nil
 local toasts: Toasts.Toasts? = nil
 local lobby: any = nil
@@ -153,6 +155,13 @@ function UIController.CalibrationResult(grade: string)
 	end
 end
 
+-- Field Guide tip (CoachController decides when).
+function UIController.Coach(tip: any)
+	if coach then
+		coach:Show(tip)
+	end
+end
+
 function UIController.OpenModal(name: string)
 	if career then
 		career.Modal:Close()
@@ -216,6 +225,7 @@ function UIController.Start()
 	career = CareerScreen.new(gui)
 	settingsScreen = SettingsScreen.new(gui, deps)
 	toasts = Toasts.new(gui)
+	coach = CoachCard.new(gui)
 	for _, message in pendingMessages do
 		if message.kind == "Announcement" then
 			UIController.Announce(message.text, message.severity, message.duration)
@@ -228,6 +238,9 @@ function UIController.Start()
 	ClientState.changed:Connect(function(key: string)
 		if key == "snapshot" or key == "role" then
 			route()
+			if coach and not ClientState.isLiveParticipant() then
+				coach:Hide()
+			end
 		elseif key == "settings" or key == "inputType" then
 			applyScale()
 			route()
