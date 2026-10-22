@@ -7,6 +7,8 @@
 --   * Keeper tracking: running Infiltrators leave short-lived temporal residue only the Keeper sees;
 --     Fractured Infiltrators spark and groan (spatial) for everyone.
 --   * Chase distortion: colour grade and a gentle FOV push while pursued (off with ReducedMotion).
+--   * Threat direction: while the Keeper is close or chasing but off-screen, ClientState "threat"
+--     holds their screen bearing so the overlay can point at them (a visual twin of spatial audio).
 
 local Debris = game:GetService("Debris")
 local Lighting = game:GetService("Lighting")
@@ -75,6 +77,45 @@ local function computeResonance(): number
 	local distance = (keeper.Position - mine.Position).Magnitude
 	local raw = math.clamp(1 - distance / radius, 0, 1)
 	return raw * raw * (3 - 2 * raw) -- smoothstep: gentle at the edge, urgent up close
+end
+
+local lastThreat: { angle: number, strength: number }? = nil
+
+-- Bearing of the Keeper relative to the camera (0 = straight ahead, clockwise positive), published
+-- only while they are off-screen; throttled so the overlay is not re-rendered every frame.
+local function updateThreat(resonance: number, chased: boolean)
+	local keeper = keeperRoot()
+	local camera = Workspace.CurrentCamera
+	local strength = math.max(resonance, if chased then 0.6 else 0)
+	local threat: { angle: number, strength: number }? = nil
+	if keeper and camera and strength > 0.15 then
+		local _, onScreen = camera:WorldToViewportPoint(keeper.Position)
+		if not onScreen then
+			local look = camera.CFrame.LookVector
+			local offset = keeper.Position - camera.CFrame.Position
+			local forward = Vector3.new(look.X, 0, look.Z)
+			local flat = Vector3.new(offset.X, 0, offset.Z)
+			if forward.Magnitude > 1e-3 and flat.Magnitude > 1e-3 then
+				forward, flat = forward.Unit, flat.Unit
+				local angle = math.atan2(forward.X * flat.Z - forward.Z * flat.X, forward:Dot(flat))
+				threat = { angle = angle, strength = strength }
+			end
+		end
+	end
+	local previous = lastThreat
+	local changed = (threat == nil) ~= (previous == nil)
+		or (
+			threat ~= nil
+			and previous ~= nil
+			and (
+				math.abs(threat.angle - previous.angle) > math.rad(4)
+				or math.abs(threat.strength - previous.strength) > 0.05
+			)
+		)
+	if changed then
+		lastThreat = threat
+		ClientState.set("threat", threat)
+	end
 end
 
 local function heartbeat(resonance: number)
@@ -230,6 +271,7 @@ function PursuitController.Start()
 		end
 		local chased = ClientState.get("chased") == true
 		heartbeat(math.max(resonance, if chased then 0.85 else 0))
+		updateThreat(resonance, chased)
 		updateGrade(resonance, chased, dt)
 		local now = os.clock()
 		if now >= residueAt then

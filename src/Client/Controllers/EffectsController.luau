@@ -287,6 +287,9 @@ function EffectsController.Survival(kind: string, payload: any)
 			TweenService:Create(wedge, TweenInfo.new(payload.duration or 0.2), { Transparency = 0.15 }):Play()
 			Debris:AddItem(wedge, (payload.duration or 0.2) + 0.1)
 			audio.Play("StrikeWindup", { position = payload.position, range = 70 })
+			if localRole() == "Infiltrator" and near(payload.position, 16) then
+				ClientState.set("strikeWarnAt", os.clock())
+			end
 		end
 	elseif kind == "Condition" then
 		local character = characterOf(payload.userId)

@@ -19,7 +19,8 @@ export type CasterContext = {
 	free: boolean?, -- false while Desynced or In Stasis (nil = not tracked, treated as free)
 }
 
-export type StrikeCandidate = { userId: number, position: Vector3 }
+-- `rewound` is where the Keeper saw the target (lag compensation); `position` is the server's now.
+export type StrikeCandidate = { userId: number, position: Vector3, rewound: Vector3? }
 
 local AbilityRules = {}
 
@@ -63,13 +64,17 @@ end
 
 -- Picks the nearest candidate within `range` whose horizontal bearing is inside the aim cone and
 -- who is visible. `aim` must already be validated as a non-degenerate direction.
+-- Lag compensation: a candidate also qualifies at its `rewound` position, but only while its current
+-- position is still within `range + rewindSlack` and `visible` (always judged at the current
+-- position), so nobody is hit through the wall they already rounded or from far behind them.
 function AbilityRules.selectStrikeTarget(
 	origin: Vector3,
 	aim: Vector3,
 	candidates: { StrikeCandidate },
 	range: number,
 	coneDegrees: number,
-	visible: (StrikeCandidate) -> boolean
+	visible: (StrikeCandidate) -> boolean,
+	rewindSlack: number?
 ): number?
 	local flatAim = Vector3.new(aim.X, 0, aim.Z)
 	if flatAim.Magnitude < 1e-3 then
@@ -77,19 +82,33 @@ function AbilityRules.selectStrikeTarget(
 	end
 	flatAim = flatAim.Unit
 	local cosLimit = math.cos(math.rad(coneDegrees / 2))
+	local function reach(position: Vector3): number?
+		local offset = position - origin
+		local distance = offset.Magnitude
+		if distance > range then
+			return nil
+		end
+		local flat = Vector3.new(offset.X, 0, offset.Z)
+		-- Targets practically on top of the caster are always inside the cone.
+		if flat.Magnitude < 1.5 or flat.Unit:Dot(flatAim) >= cosLimit then
+			return distance
+		end
+		return nil
+	end
 	local bestId: number? = nil
 	local bestDistance = math.huge
 	for _, candidate in candidates do
-		local offset = candidate.position - origin
-		local distance = offset.Magnitude
-		if distance <= range then
-			local flat = Vector3.new(offset.X, 0, offset.Z)
-			-- Targets practically on top of the caster are always inside the cone.
-			local inCone = flat.Magnitude < 1.5 or flat.Unit:Dot(flatAim) >= cosLimit
-			if inCone and distance < bestDistance and visible(candidate) then
-				bestDistance = distance
-				bestId = candidate.userId
+		local distance = reach(candidate.position)
+		local rewound = candidate.rewound
+		if rewound and (candidate.position - origin).Magnitude <= range + (rewindSlack or 0) then
+			local past = reach(rewound)
+			if past and (distance == nil or past < distance) then
+				distance = past
 			end
+		end
+		if distance and distance < bestDistance and visible(candidate) then
+			bestDistance = distance
+			bestId = candidate.userId
 		end
 	end
 	return bestId
