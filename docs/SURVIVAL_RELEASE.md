@@ -13,6 +13,19 @@ and `PerkConfig.luau`. Nothing has been published.
 
 All merged into `integration/survival-protocol`, then `main`.
 
+### Survival Evolution (2026-10-22)
+
+| Milestone | Branch | What landed |
+| --- | --- | --- |
+| Chase fairness | `feat/chase-fairness` | Lag-compensated Chrono Strike (`PositionHistory`, bounded rewind, line of sight and range judged at the current position), off-screen threat chevron, **Afterimage** decoy gadget |
+| Balance telemetry | `feat/balance-telemetry`, `feat/telemetry-conditions` | `MatchTelemetry` anonymous per-match summaries, rolling aggregate, AnalyticsService headline events, target bands and ten repeatable scenarios in BALANCE.md |
+| Replayability | `feat/timeline-conditions` | Six weighted, two-sided Timeline Conditions applied through perk modifier keys; shown on deployment and HUD |
+| Onboarding | `feat/field-guide` | Field Guide coaching cards for each role's first three matches |
+| Runtime validation | `fix/e2e-survival-expectations`, `test/afterimage-e2e` | First in-engine run of the survival build; toast-stack and marker fixes; harden and extend the E2E suites |
+
+Merged into `integration/survival-evolution`, then `main`. In-engine results:
+[TEST_PLAN](TEST_PLAN.md#survival-evolution-validation-current-2026-10-22).
+
 ## Verified (offline, this build)
 
 Evidence: [evidence/survival-automated.txt](evidence/survival-automated.txt).
@@ -29,13 +42,8 @@ Evidence: [evidence/survival-automated.txt](evidence/survival-automated.txt).
 
 ## Not verified — release gates
 
-Studio validation could not run in this session: the required Studio MCP server failed to connect,
-and the fallback server has no plugin (connection timeout). Studio was open on a different place.
-
-1. In-engine E2E (`build/test.rbxl`): solo F5, 2-player and 3–5 player squad runs. The driver was
-   updated for the new rules (calibration answering, four terminals, relay-gated extraction,
-   strike → Fractured → erased, Mend boosts, calibration press through the remote) but has **not**
-   been executed; expect first-run fixes.
+1. ~~In-engine E2E~~ — **done 2026-10-22**: solo 120/120, 2-player 81/81, 5-player 36/36 (see
+   TEST_PLAN). Latency play (BALANCE scenario S3) is still open.
 2. Runtime behaviour that only the engine exercises: anchored vault arcs and landing feel, barrier
    push-out, locker hide/search, pod holds, prompt filtering by local activation distance,
    procedural root-joint poses on R15 and R6 avatars, heartbeat timing, residue counts.
