@@ -1,0 +1,257 @@
+Survival Evolution — in-engine E2E evidence (Roblox Studio 0.744, Test → Server & Clients, 2026-10-22)
+Lines are verbatim from the Studio session logs (timestamps UTC).
+
+=== starting solo suite with 1 player(s)
+2026-10-22T07:28:06.472Z [Tests] 228 passed, 0 failed
+2026-10-22T07:28:17.319Z [E2E] PASS lobby: character spawned
+2026-10-22T07:28:17.319Z [E2E] PASS lobby: spawned in the lobby area
+2026-10-22T07:28:17.319Z [E2E] PASS lobby: baseline walk speed 16
+2026-10-22T07:28:17.319Z [E2E] PASS lobby: default Health regen script replaced
+2026-10-22T07:28:17.435Z [E2E] PASS client: connected and booted
+2026-10-22T07:28:17.435Z [E2E] PASS client: lobby visible, HUD hidden
+2026-10-22T07:28:17.435Z [E2E] PASS layout: lobby has no clipped or offscreen elements
+2026-10-22T07:28:17.435Z [E2E] PASS client: connection overlay hidden
+2026-10-22T07:28:17.435Z [E2E] PASS client: profile snapshot received
+2026-10-22T07:28:18.518Z [E2E] PASS queue: unknown action rejected InvalidPayload
+2026-10-22T07:28:19.868Z [E2E] PASS queue: join accepted
+2026-10-22T07:28:21.234Z [E2E] PASS queue: duplicate join rejected AlreadyQueued
+2026-10-22T07:28:21.336Z [E2E] PASS client: queue state shows queued
+2026-10-22T07:28:21.336Z [E2E] PASS match: intermission started
+2026-10-22T07:28:23.661Z [E2E] PASS match: intro started
+2026-10-22T07:28:23.661Z [E2E] PASS match: player is an Infiltrator (solo, keeperless)
+2026-10-22T07:28:24.001Z [E2E] PASS match: respawned at an Infiltrator spawn
+2026-10-22T07:28:24.001Z [E2E] PASS match: held in place during intro
+2026-10-22T07:28:24.118Z [E2E] PASS client: role reveal visible during intro
+2026-10-22T07:28:24.118Z [E2E] PASS client: role received as Infiltrator
+2026-10-22T07:28:31.718Z [E2E] PASS match: active phase
+2026-10-22T07:28:31.718Z [E2E] PASS match: movement restored to 16 after intro
+2026-10-22T07:28:31.718Z [E2E] PASS match: spawn protection active
+2026-10-22T07:28:31.718Z [E2E] PASS world: terminals available with prompts enabled
+2026-10-22T07:28:31.834Z [E2E] PASS client: HUD visible, lobby hidden
+2026-10-22T07:28:31.835Z [E2E] PASS conditions: pinned Timeline Condition replicated
+2026-10-22T07:28:31.952Z [E2E] PASS field guide: a first-match player is coached when the match goes live
+2026-10-22T07:28:31.952Z [E2E] PASS client: core PlayerList hidden (squad panel owns top-right)
+2026-10-22T07:28:31.952Z [E2E] PASS layout: HUD has no clipped or offscreen elements
+2026-10-22T07:28:31.952Z [E2E] PASS client: role reveal dismissed
+2026-10-22T07:28:31.952Z [E2E] PASS client: one gadget slot in the ability bar
+2026-10-22T07:28:33.051Z [E2E] PASS authority: Infiltrator cannot use Chrono Strike (WrongRole)
+2026-10-22T07:28:34.184Z [E2E] PASS authority: NaN target rejected (InvalidPayload)
+2026-10-22T07:28:35.301Z [E2E] PASS authority: extra arguments rejected (InvalidPayload)
+2026-10-22T07:28:36.385Z [E2E] PASS authority: unequipped gadget rejected (NotOwned)
+2026-10-22T07:28:37.484Z [E2E] PASS authority: shop locked during a live match (InMatch)
+2026-10-22T07:28:37.485Z [E2E] PASS authority: hack from spawn rejected OutOfRange (server-measured)
+2026-10-22T07:28:37.485Z [E2E] PASS authority: forged terminal id rejected
+2026-10-22T07:28:38.617Z [E2E] PASS gadget: Stabilizer accepted
+2026-10-22T07:28:38.618Z [E2E] PASS gadget: slow immunity applied
+2026-10-22T07:28:39.702Z [E2E] PASS gadget: immediate re-use rejected OnCooldown
+2026-10-22T07:28:39.818Z [E2E] PASS client: ability cooldown mirrored
+2026-10-22T07:28:41.368Z [E2E] PASS security: request burst is rate limited
+2026-10-22T07:28:41.369Z [E2E] PASS freeze: telegraph does not slow immediately
+2026-10-22T07:28:41.702Z [E2E] PASS freeze: 70% slow applied from baseline (4.8)
+2026-10-22T07:28:43.218Z [E2E] PASS freeze: overlapping zones do not stack; slow persists after one expires
+2026-10-22T07:28:43.334Z [E2E] PASS client: slowed status mirrored
+2026-10-22T07:28:45.318Z [E2E] PASS freeze: speed restored to exactly 16 after all zones end
+2026-10-22T07:28:45.851Z [E2E] PASS hack: prompt pressed
+2026-10-22T07:28:45.851Z [E2E] PASS hack: server started Archive hack
+2026-10-22T07:28:46.967Z [E2E] PASS client: hack panel visible while hacking
+2026-10-22T07:28:46.967Z [E2E] PASS layout: HUD while hacking has no clipped or offscreen elements
+2026-10-22T07:28:51.100Z [E2E] PASS hack: leaving range interrupts
+2026-10-22T07:28:51.101Z [E2E] PASS hack: progress retained after interruption (~33%)
+2026-10-22T07:28:52.651Z [E2E] PASS hack: terminal re-available after lockout
+2026-10-22T07:28:53.384Z [E2E] PASS trap: triggers on the Infiltrator
+2026-10-22T07:28:53.385Z [E2E] PASS trap: stun sets speed 0
+2026-10-22T07:28:53.500Z [E2E] PASS trap: stun interrupts hacking (Restrained)
+2026-10-22T07:28:54.734Z [E2E] PASS trap: after stun, 40% slow (9.6)
+2026-10-22T07:28:57.333Z [E2E] PASS trap: speed restored to 16
+2026-10-22T07:28:57.333Z [E2E] PASS placement: open floor accepted
+2026-10-22T07:28:57.333Z [E2E] PASS placement: behind the Chrono Core rejected (NoLineOfSight)
+2026-10-22T07:28:57.333Z [E2E] PASS placement: through a partition wall rejected
+2026-10-22T07:28:57.333Z [E2E] PASS placement: outside the vault rejected
+2026-10-22T07:28:57.334Z [E2E] PASS placement: mid-air rejected
+2026-10-22T07:28:57.334Z [E2E] PASS placement: beyond cast range rejected
+2026-10-22T07:28:57.334Z [E2E] PASS hack: Archive resumable after interruptions
+2026-10-22T07:28:57.850Z [E2E] PASS Archive: prompt pressed via ProximityPrompt
+2026-10-22T07:28:57.850Z [E2E] PASS Archive: server started the hack
+2026-10-22T07:29:11.966Z [E2E] PASS Archive: terminal completes (calibrated)
+2026-10-22T07:29:12.483Z [E2E] PASS Reactor: prompt pressed via ProximityPrompt
+2026-10-22T07:29:12.483Z [E2E] PASS Reactor: server started the hack
+2026-10-22T07:29:33.383Z [E2E] PASS Reactor: terminal completes (calibrated)
+2026-10-22T07:29:33.899Z [E2E] PASS Observatory: prompt pressed via ProximityPrompt
+2026-10-22T07:29:33.899Z [E2E] PASS Observatory: server started the hack
+2026-10-22T07:29:57.348Z [E2E] PASS Observatory: terminal completes (calibrated)
+2026-10-22T07:29:57.881Z [E2E] PASS West Hall: prompt pressed via ProximityPrompt
+2026-10-22T07:29:57.881Z [E2E] PASS West Hall: server started the hack
+2026-10-22T07:30:23.880Z [E2E] PASS West Hall: terminal completes (calibrated)
+2026-10-22T07:30:23.880Z [E2E] PASS extraction: Collapse entered after 4 hacks
+2026-10-22T07:30:23.880Z [E2E] PASS extraction: gate stays sealed until a relay is powered
+2026-10-22T07:30:23.880Z [E2E] PASS extraction: fifth terminal locked
+2026-10-22T07:30:24.397Z [E2E] PASS extraction: relay prompt pressed
+2026-10-22T07:30:34.329Z [E2E] PASS extraction: relay powers the Breach Gate open
+2026-10-22T07:30:34.430Z [E2E] PASS client: extraction visible in HUD
+2026-10-22T07:30:37.547Z [Telemetry] match {"extracted":1,"erased":0,"condition":"Stable","reason":"Extracted","terminals":4,"squad":1,"disconnects":{"Infiltrator":0,"TimeKeeper":0},"hits":0,"classes":{"Ghost":{"picked":1,"extracted":1,"erased":0}},"abilities":{"Stabilizer":1},"mapId":"Vault","calibration":{"Great":4,"Good":3,"Miss":0},"maxChaseSec":0,"firstTerminalSec":48,"chases":0,"avgChaseSec":0,"containments":0,"campReleases":0,"durationSec":134,"tunnelHits":0,"bleedOuts":0,"winner":"Infiltrators","rescues":0,"downs":0}
+2026-10-22T07:30:37.548Z [E2E] PASS extraction: player extracted after channel
+2026-10-22T07:30:37.548Z [E2E] PASS result: match resolved
+2026-10-22T07:30:37.548Z [E2E] PASS result: Infiltrators win by extraction
+2026-10-22T07:30:37.662Z [E2E] PASS client: results screen visible
+2026-10-22T07:30:37.662Z [E2E] PASS layout: results has no clipped or offscreen elements
+2026-10-22T07:30:37.663Z [E2E] PASS client: victory with reward breakdown
+2026-10-22T07:30:37.663Z [E2E] PASS rewards: match breakdown = 170
+2026-10-22T07:30:37.663Z [E2E] PASS rewards: credited total covers the breakdown
+2026-10-22T07:30:37.663Z [E2E] PASS rewards: profile credited exactly once
+2026-10-22T07:30:37.663Z [E2E] PASS rewards: duplicate resolution does not pay twice
+2026-10-22T07:30:52.713Z [E2E] PASS lifecycle: back to WaitingForPlayers
+2026-10-22T07:30:52.713Z [E2E] PASS lifecycle: session cleared
+2026-10-22T07:30:52.713Z [E2E] PASS lifecycle: stale match id rejected
+2026-10-22T07:30:52.713Z [E2E] PASS cleanup: runtime folder empty
+2026-10-22T07:30:52.713Z [E2E] PASS cleanup: no zones/traps tracked
+2026-10-22T07:30:52.713Z [E2E] PASS cleanup: terminals reset to Locked
+2026-10-22T07:30:52.713Z [E2E] PASS cleanup: gate closed again
+2026-10-22T07:30:52.713Z [E2E] PASS lifecycle: player back in the lobby
+2026-10-22T07:30:52.829Z [E2E] PASS client: lobby shown again after the match
+2026-10-22T07:30:52.829Z [E2E] PASS client: currency updated in UI state
+2026-10-22T07:30:54.195Z [E2E] PASS match 2: re-queue accepted
+2026-10-22T07:31:06.078Z [E2E] PASS match 2: active
+2026-10-22T07:31:06.079Z [E2E] PASS match 2: new match id
+2026-10-22T07:31:06.195Z [E2E] PASS client: match 1 results closed once match 2 role arrived (Continue never pressed)
+2026-10-22T07:31:06.195Z [E2E] PASS match 2: long slow active before death (4.8)
+2026-10-22T07:31:06.212Z [Telemetry] match {"extracted":0,"erased":1,"condition":"Stable","reason":"AllEliminated","terminals":0,"squad":1,"disconnects":{"Infiltrator":0,"TimeKeeper":0},"hits":0,"classes":{"Ghost":{"picked":1,"extracted":0,"erased":1}},"abilities":[],"mapId":"Vault","calibration":{"Great":0,"Good":0,"Miss":0},"maxChaseSec":0,"chases":0,"avgChaseSec":0,"containments":0,"campReleases":0,"durationSec":8,"tunnelHits":0,"bleedOuts":0,"winner":"TimeKeeper","rescues":0,"downs":0}
+2026-10-22T07:31:06.296Z [E2E] PASS match 2: death eliminates the Infiltrator
+2026-10-22T07:31:06.296Z [E2E] PASS match 2: resolves AllEliminated
+2026-10-22T07:31:06.412Z [E2E] PASS match 2: defeat result received by client
+2026-10-22T07:31:06.412Z [E2E] PASS match 2: defeat pays participation only (20)
+2026-10-22T07:31:06.412Z [E2E] PASS match 2: profile credited separately
+2026-10-22T07:31:09.062Z [E2E] PASS match 2: eliminated player respawns in the lobby
+2026-10-22T07:31:09.062Z [E2E] PASS match 2: death while slowed respawns at baseline 16
+2026-10-22T07:31:21.495Z [E2E] PASS match 2: lifecycle completes
+2026-10-22T07:31:21.495Z [E2E] PASS match 2: no lingering status effects
+2026-10-22T07:31:21.611Z [E2E] PASS client: no game script errors on Player1
+2026-10-22T07:31:21.611Z [E2E] solo: 120 passed, 0 failed
+
+=== starting multiplayer suite with 2 player(s)
+2026-10-22T07:24:32.437Z [Tests] 228 passed, 0 failed
+2026-10-22T07:24:45.645Z [E2E] PASS shop[Player1]: purchase Echo Scanner accepted
+2026-10-22T07:24:45.645Z [E2E] PASS shop[Player1]: cost 250 deducted once
+2026-10-22T07:24:46.695Z [E2E] PASS shop[Player1]: re-purchase rejected AlreadyOwned
+2026-10-22T07:24:47.779Z [E2E] PASS shop[Player1]: unaffordable item rejected, no charge
+2026-10-22T07:24:48.878Z [E2E] PASS shop[Player1]: equip accepted
+2026-10-22T07:24:48.995Z [E2E] PASS client[Player1]: loadout mirrored (owned + equipped)
+2026-10-22T07:24:50.095Z [E2E] PASS shop[Player2]: purchase Echo Scanner accepted
+2026-10-22T07:24:50.095Z [E2E] PASS shop[Player2]: cost 250 deducted once
+2026-10-22T07:24:51.212Z [E2E] PASS shop[Player2]: re-purchase rejected AlreadyOwned
+2026-10-22T07:24:52.295Z [E2E] PASS shop[Player2]: unaffordable item rejected, no charge
+2026-10-22T07:24:53.378Z [E2E] PASS shop[Player2]: equip accepted
+2026-10-22T07:24:53.478Z [E2E] PASS client[Player2]: loadout mirrored (owned + equipped)
+2026-10-22T07:24:54.795Z [E2E] PASS queue: first player joins
+2026-10-22T07:24:57.811Z [E2E] PASS queue: one queued player waits (minimum 2)
+2026-10-22T07:24:59.095Z [E2E] PASS queue: second player joins
+2026-10-22T07:24:59.095Z [E2E] PASS match: intermission starts at 2 players
+2026-10-22T07:25:12.938Z [E2E] PASS match: intro after 15 s intermission
+2026-10-22T07:25:12.938Z [E2E] PASS roles: exactly one Time-Keeper and one Infiltrator
+2026-10-22T07:25:13.261Z [E2E] PASS spawn: Keeper placed in the Sanctum
+2026-10-22T07:25:13.261Z [E2E] PASS spawn: Infiltrator placed in the Spawn Bay
+2026-10-22T07:25:13.494Z [E2E] PASS client: Keeper sees role reveal as TimeKeeper
+2026-10-22T07:25:13.494Z [E2E] PASS client: Infiltrator sees role reveal as Infiltrator
+2026-10-22T07:25:21.010Z [E2E] PASS match: active
+2026-10-22T07:25:21.527Z [E2E] PASS keeper: held in the Sanctum after Active begins
+2026-10-22T07:25:21.527Z [E2E] PASS infiltrator: free to move (16)
+2026-10-22T07:25:21.528Z [E2E] PASS infiltrator: spawn protection
+2026-10-22T07:25:22.611Z [E2E] PASS keeper: abilities rejected while held (Restrained)
+2026-10-22T07:25:22.844Z [E2E] PASS client: Keeper ability bar has 4 slots
+2026-10-22T07:25:22.844Z [E2E] PASS client: Infiltrator ability bar has gadget and class skill slots
+2026-10-22T07:25:22.844Z [E2E] PASS replication: both clients see both participants
+2026-10-22T07:25:23.944Z [E2E] PASS gadget: Echo Scanner accepted
+2026-10-22T07:25:23.944Z [E2E] PASS gadget: Keeper marked Revealed
+2026-10-22T07:25:25.010Z [E2E] PASS gadget: unequipped Stabilizer rejected (loadout locked at match start)
+2026-10-22T07:25:31.060Z [E2E] PASS keeper: released after 10 s (speed 17.25)
+2026-10-22T07:25:32.677Z [E2E] PASS freeze: target beyond range rejected
+2026-10-22T07:25:33.776Z [E2E] PASS freeze: target behind the Chrono Core rejected (NoLineOfSight)
+2026-10-22T07:25:34.860Z [E2E] PASS freeze: valid cast accepted
+2026-10-22T07:25:34.860Z [E2E] PASS freeze: zone instance exists
+2026-10-22T07:25:34.860Z [E2E] PASS freeze: Infiltrator slowed to 4.8 after telegraph
+2026-10-22T07:25:34.977Z [E2E] PASS client: Infiltrator sees slowed status
+2026-10-22T07:25:36.077Z [E2E] PASS freeze: recast rejected OnCooldown
+2026-10-22T07:25:36.393Z [E2E] PASS freeze: leaving the zone restores 16
+2026-10-22T07:25:44.693Z [E2E] PASS freeze: zone expires and is cleaned up
+2026-10-22T07:25:46.126Z [E2E] PASS trap: placement accepted
+2026-10-22T07:25:47.226Z [E2E] PASS trap: second trap blocked (cooldown before spacing)
+2026-10-22T07:25:49.142Z [E2E] PASS trap: Infiltrator stunned (speed 0)
+2026-10-22T07:25:49.142Z [E2E] PASS trap: consumed after triggering
+2026-10-22T07:25:52.892Z [E2E] PASS trap: stun -> 40% slow -> 16
+2026-10-22T07:25:53.409Z [E2E] PASS strike: Infiltrator started a hack
+2026-10-22T07:25:53.526Z [E2E] PASS replication: Keeper client sees the terminal being hacked
+2026-10-22T07:25:54.909Z [E2E] PASS strike: cooldown enforced
+2026-10-22T07:25:54.909Z [E2E] PASS strike: accepted
+2026-10-22T07:25:54.909Z [E2E] PASS strike: wind-up resolves to Fractured (health mirrors half)
+2026-10-22T07:25:54.909Z [E2E] PASS strike: victim escape burst and Keeper recoil applied
+2026-10-22T07:25:54.909Z [E2E] PASS strike: damage interrupted the hack
+2026-10-22T07:25:56.710Z [Telemetry] match {"extracted":0,"erased":1,"condition":"Stable","reason":"AllEliminated","terminals":0,"squad":1,"disconnects":{"Infiltrator":0,"TimeKeeper":0},"hits":2,"classes":{"Ghost":{"picked":1,"extracted":0,"erased":1}},"abilities":{"TemporalTrap":1,"ChronoStrike":2,"EchoScanner":1,"TimeFreeze":1},"mapId":"Vault","calibration":{"Great":0,"Good":0,"Miss":0},"maxChaseSec":20.9,"chases":2,"avgChaseSec":11.5,"containments":0,"campReleases":0,"durationSec":44,"tunnelHits":0,"bleedOuts":0,"winner":"TimeKeeper","rescues":0,"downs":1}
+2026-10-22T07:25:56.993Z [E2E] PASS elimination: second strike Desyncs the last free Infiltrator, who is erased
+2026-10-22T07:25:56.993Z [E2E] PASS result: Time-Keeper wins AllEliminated
+2026-10-22T07:25:56.993Z [E2E] PASS result: elimination credited to the Keeper
+2026-10-22T07:25:57.209Z [E2E] PASS result: both clients received their results
+2026-10-22T07:25:57.209Z [E2E] PASS rewards: Keeper victory = 20 + 50 + 20
+2026-10-22T07:25:57.209Z [E2E] PASS rewards: Infiltrator defeat = participation 20
+2026-10-22T07:25:57.209Z [E2E] PASS cleanup: runtime emptied at resolution
+2026-10-22T07:26:11.942Z [E2E] PASS lifecycle: returns to WaitingForPlayers
+2026-10-22T07:26:14.158Z [E2E] PASS shop[Player1]: Afterimage bought and equipped
+2026-10-22T07:26:16.358Z [E2E] PASS shop[Player2]: Afterimage bought and equipped
+2026-10-22T07:26:19.008Z [E2E] PASS match 2: both re-queued
+2026-10-22T07:26:40.924Z [E2E] PASS match 2: active
+2026-10-22T07:26:42.041Z [E2E] PASS afterimage: cast accepted
+2026-10-22T07:26:42.041Z [E2E] PASS afterimage: caster residue suppressed while the echo runs
+2026-10-22T07:26:42.157Z [E2E] PASS afterimage: Keeper client renders the echo
+2026-10-22T07:26:43.257Z [E2E] PASS afterimage: second cast on cooldown
+2026-10-22T07:26:44.690Z [E2E] PASS afterimage: echo expires and the flag clears
+2026-10-22T07:26:50.973Z [E2E] PASS match 2: Keeper released
+2026-10-22T07:26:53.457Z [E2E] PASS match 2: zone and trap live before resolution
+2026-10-22T07:26:54.477Z [Telemetry] match {"extracted":0,"erased":0,"condition":"Stable","reason":"InfiltratorsLeft","terminals":0,"squad":1,"disconnects":{"Infiltrator":1,"TimeKeeper":0},"hits":0,"classes":{"Ghost":{"picked":1,"extracted":0,"erased":0}},"abilities":{"TemporalTrap":1,"Afterimage":1,"TimeFreeze":1},"mapId":"Vault","calibration":{"Great":0,"Good":0,"Miss":1},"maxChaseSec":0,"chases":0,"avgChaseSec":0,"containments":0,"campReleases":0,"durationSec":22,"tunnelHits":0,"bleedOuts":0,"winner":"TimeKeeper","rescues":0,"downs":0}
+2026-10-22T07:26:54.557Z [E2E] PASS disconnect: hack interrupted when the hacker leaves
+2026-10-22T07:26:54.557Z [E2E] PASS disconnect: resolves InfiltratorsLeft for the Keeper
+2026-10-22T07:26:54.557Z [E2E] PASS cleanup: live zone and trap destroyed at resolution
+2026-10-22T07:26:54.557Z [E2E] PASS disconnect: departed player recorded as disconnected (ineligible for rewards)
+2026-10-22T07:26:54.557Z [E2E] PASS disconnect: staying Keeper paid the win
+2026-10-22T07:27:09.540Z [E2E] PASS disconnect: lifecycle recovers to WaitingForPlayers
+2026-10-22T07:27:09.656Z [E2E] PASS client: no game script errors on Player2
+2026-10-22T07:27:09.657Z [E2E] multiplayer: 81 passed, 0 failed
+
+=== starting squad suite with 5 player(s)
+2026-10-22T07:17:54.318Z [Tests] 228 passed, 0 failed
+2026-10-22T07:18:12.998Z [E2E] PASS squad: Player1 queued
+2026-10-22T07:18:14.298Z [E2E] PASS squad: Player2 queued
+2026-10-22T07:18:15.631Z [E2E] PASS squad: Player3 queued
+2026-10-22T07:18:16.914Z [E2E] PASS squad: Player4 queued
+2026-10-22T07:18:18.247Z [E2E] PASS squad: Player5 queued
+2026-10-22T07:18:36.280Z [E2E] PASS squad: 5-player match active
+2026-10-22T07:18:36.280Z [E2E] PASS squad: exactly one Keeper, everyone else an Infiltrator
+2026-10-22T07:18:36.846Z [E2E] PASS squad: every client mirrors its own role and shows the HUD
+2026-10-22T07:18:37.780Z [E2E] PASS squad: two terminals hacked simultaneously
+2026-10-22T07:18:37.780Z [E2E] PASS squad: one terminal per hacker (AlreadyHacking)
+2026-10-22T07:18:38.197Z [E2E] PASS squad: one assistant can join the primary hacker
+2026-10-22T07:18:43.313Z [E2E] PASS squad: walking away interrupts with progress retained
+2026-10-22T07:18:48.529Z [E2E] PASS squad: disconnect interrupts the leaver's hack
+2026-10-22T07:18:48.529Z [E2E] PASS squad: match continues after one Infiltrator leaves
+2026-10-22T07:19:17.545Z [E2E] PASS squad: Reactor completes
+2026-10-22T07:19:18.078Z [E2E] PASS squad: teammate resumes ArchiveTerminal from 13%
+2026-10-22T07:19:52.794Z [E2E] PASS squad: ArchiveTerminal completes
+2026-10-22T07:19:53.310Z [E2E] PASS squad: teammate resumes ObservatoryTerminal from 7%
+2026-10-22T07:20:33.992Z [E2E] PASS squad: ObservatoryTerminal completes
+2026-10-22T07:20:34.508Z [E2E] PASS squad: teammate resumes WestTerminal from 0%
+2026-10-22T07:21:25.190Z [E2E] PASS squad: WestTerminal completes
+2026-10-22T07:21:25.190Z [E2E] PASS squad: Temporal Collapse opens
+2026-10-22T07:21:25.707Z [E2E] PASS squad: relay prompt pressed
+2026-10-22T07:21:35.773Z [E2E] PASS squad: relay powers the Breach Gate open
+2026-10-22T07:21:38.890Z [Telemetry] match {"extracted":3,"erased":0,"condition":"Stable","reason":"Extracted","terminals":4,"squad":4,"disconnects":{"Infiltrator":1,"TimeKeeper":0},"hits":0,"classes":{"Ghost":{"picked":4,"extracted":3,"erased":0}},"abilities":[],"mapId":"Vault","calibration":{"Great":10,"Good":4,"Miss":1},"maxChaseSec":0,"firstTerminalSec":49,"chases":0,"avgChaseSec":0,"containments":0,"campReleases":0,"durationSec":191,"tunnelHits":0,"bleedOuts":0,"winner":"Infiltrators","rescues":0,"downs":0}
+2026-10-22T07:21:38.890Z [E2E] PASS squad: Infiltrators win by extraction
+2026-10-22T07:21:38.890Z [E2E] PASS squad: leaver recorded as disconnected and ineligible
+2026-10-22T07:21:39.323Z [E2E] PASS squad: every remaining client got one consistent, paid result
+2026-10-22T07:21:54.022Z [E2E] PASS squad: lifecycle returns to WaitingForPlayers
+2026-10-22T07:22:18.604Z [E2E] PASS squad: match 2 active
+2026-10-22T07:22:18.604Z [E2E] PASS squad: Keeper rotated away from the previous Keeper
+2026-10-22T07:22:19.623Z [Telemetry] match {"extracted":0,"erased":0,"condition":"Stable","reason":"KeeperLeft","terminals":0,"squad":3,"disconnects":{"Infiltrator":0,"TimeKeeper":1},"hits":0,"classes":{"Ghost":{"picked":3,"extracted":0,"erased":0}},"abilities":[],"mapId":"Vault","calibration":{"Great":0,"Good":0,"Miss":0},"maxChaseSec":0,"chases":0,"avgChaseSec":0,"containments":0,"campReleases":0,"durationSec":9,"tunnelHits":0,"bleedOuts":0,"winner":"Infiltrators","rescues":0,"downs":0}
+2026-10-22T07:22:19.687Z [E2E] PASS squad: Keeper leaving gives the Infiltrators the win
+2026-10-22T07:22:34.887Z [E2E] PASS squad: lifecycle recovers to WaitingForPlayers
+2026-10-22T07:22:34.887Z [E2E] PASS squad: no lingering status effects
+2026-10-22T07:22:35.004Z [E2E] PASS client: no game script errors on Player3
+2026-10-22T07:22:35.120Z [E2E] PASS client: no game script errors on Player4
+2026-10-22T07:22:35.237Z [E2E] PASS client: no game script errors on Player5
+2026-10-22T07:22:35.237Z [E2E] squad: 36 passed, 0 failed
