@@ -1239,6 +1239,20 @@ local function runMultiplayer(a: Player, b: Player)
 		d:getPhase()
 	)
 
+	-- Both buy and equip the Afterimage gadget for match 2 (loadouts lock at match start).
+	for _, p in { a, b } do
+		PlayerDataService.Mutate(p, function(profile)
+			return Economy.grant(profile, 200)
+		end)
+		local buy = client(p, "fire", { remote = "ShopRequest", args = { "Purchase", "Afterimage" } })
+		local equip = client(p, "fire", { remote = "ShopRequest", args = { "Equip", "Afterimage" } })
+		check(
+			`shop[{p.Name}]: Afterimage bought and equipped`,
+			buy and buy[1] and buy[1].ok == true and equip and equip[1] and equip[1].ok == true,
+			{ buy = codes(buy), equip = codes(equip) }
+		)
+	end
+
 	-- 9. Disconnect mid-match: the Infiltrator leaves during Active
 	local qa = client(a, "fire", { remote = "QueueRequest", args = { "Join" } })
 	local qb = client(b, "fire", { remote = "QueueRequest", args = { "Join" } })
@@ -1259,6 +1273,35 @@ local function runMultiplayer(a: Player, b: Player)
 	local stayer = if leaver == a then b else a
 	local scrapBefore = (PlayerDataService.GetProfile(stayer) :: any).ChronosScrap
 	if leaver then
+		-- Afterimage: accepted once, flags the caster's residue off, and the Keeper's client renders
+		-- the echo; a second cast is on cooldown.
+		local cast = client(leaver, "fire", { remote = "AbilityRequest", args = { "Afterimage" } })
+		check("afterimage: cast accepted", cast and cast[1] and cast[1].ok == true, codes(cast))
+		check(
+			"afterimage: caster residue suppressed while the echo runs",
+			waitFor(function()
+				return leaver.Character ~= nil and leaver.Character:GetAttribute("Afterimage") == true
+			end, 1)
+		)
+		check(
+			"afterimage: Keeper client renders the echo",
+			waitFor(function()
+				local s = client(stayer, "snapshot")
+				return s ~= nil and (s.echoes or 0) >= 1
+			end, 2)
+		)
+		local again = client(leaver, "fire", { remote = "AbilityRequest", args = { "Afterimage" } })
+		check("afterimage: second cast on cooldown", hasCode(again, "OnCooldown"), codes(again))
+		check(
+			"afterimage: echo expires and the flag clears",
+			waitFor(function()
+				local s = client(stayer, "snapshot")
+				return s ~= nil
+					and s.echoes == 0
+					and leaver.Character ~= nil
+					and leaver.Character:GetAttribute("Afterimage") == nil
+			end, 5)
+		)
 		moveToTerminal(leaver, "ReactorTerminal")
 		client(leaver, "prompt", { terminal = "Terminal_ReactorTerminal" })
 		waitFor(function()
