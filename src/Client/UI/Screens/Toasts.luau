@@ -29,7 +29,8 @@ function Toasts.new(parent: Instance): Toasts
 		BackgroundTransparency = 1,
 		AnchorPoint = Vector2.new(1, 0),
 		Position = UDim2.new(1, -Theme.Spacing.L, 0, 440), -- below the lobby menu / squad panel
-		Size = UDim2.fromOffset(340, 400),
+		-- Fill the space left below the lobby menu so short screens never push toasts offscreen.
+		Size = UDim2.new(0, 340, 1, -(440 + Theme.Spacing.L)),
 		ZIndex = 30,
 		Parent = parent,
 	}, {
@@ -88,8 +89,9 @@ function Toasts.new(parent: Instance): Toasts
 		end)
 		local camera = Workspace.CurrentCamera
 		local compact = ClientState.get("inputType") == "Touch" and camera ~= nil and camera.ViewportSize.Y < 600
-		stack.Position = UDim2.new(1, -Theme.Spacing.L, 0, if compact then 115 else 440)
-		stack.Size = UDim2.fromOffset(if compact then 300 else 340, 400)
+		local top = if compact then 115 else 440
+		stack.Position = UDim2.new(1, -Theme.Spacing.L, 0, top)
+		stack.Size = UDim2.new(0, if compact then 300 else 340, 1, -(top + Theme.Spacing.L))
 		local limit = if compact then 1 else MAX_TOASTS
 		while #children >= limit do
 			local oldest = table.remove(children, 1)

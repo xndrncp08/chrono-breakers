@@ -5,6 +5,7 @@
 -- remotes, and real ProximityPrompts, and prints "[E2E] PASS/FAIL ..." lines plus a summary.
 -- Results are read through Roblox Studio MCP (get_output_logs on the play server peer).
 
+local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local RunService = game:GetService("RunService")
@@ -68,7 +69,12 @@ local function check(name: string, condition: boolean, detail: any?)
 		print(`[E2E] PASS {name}`)
 	else
 		failed += 1
-		warn(`[E2E] FAIL {name} :: {tostring(detail)}`)
+		local text = tostring(detail)
+		if type(detail) == "table" then
+			local ok, json = pcall(HttpService.JSONEncode, HttpService, detail)
+			text = if ok then string.sub(json, 1, 900) else text
+		end
+		warn(`[E2E] FAIL {name} :: {text}`)
 	end
 end
 
@@ -672,12 +678,19 @@ local function runMatchOne(player: Player)
 		snap and snap.result and snap.result.won == true and snap.result.lines >= 3,
 		snap and snap.result
 	)
-	local expected = 20 + 50 + 4 * 15 + 40
+	local breakdown = 20 + 50 + 4 * 15 + 40
 	check(
-		`rewards: payout = {expected}`,
-		snap and snap.result and snap.result.total == expected,
-		snap and snap.result and snap.result.total
+		`rewards: match breakdown = {breakdown}`,
+		snap and snap.result and snap.result.breakdown == breakdown,
+		snap and snap.result
 	)
+	-- The credited total adds any contract / level-up Scrap on top of the breakdown.
+	local expected = if snap
+			and snap.result
+			and type(snap.result.total) == "number"
+		then snap.result.total
+		else breakdown
+	check("rewards: credited total covers the breakdown", expected >= breakdown, snap and snap.result)
 	local profile = PlayerDataService.GetProfile(player)
 	check(
 		"rewards: profile credited exactly once",
@@ -802,16 +815,14 @@ local function runMatchTwo(player: Player)
 	)
 	check(
 		"match 2: defeat pays participation only (20)",
-		snap and snap.result and snap.result.won == false and snap.result.total == 20,
+		snap and snap.result and snap.result.won == false and snap.result.breakdown == 20,
 		snap and snap.result
 	)
-	check(
-		"match 2: profile credited +20 separately",
-		waitFor(function()
-			local p = PlayerDataService.GetProfile(player)
-			return p ~= nil and p.ChronosScrap == scrapBefore + 20
-		end, 3)
-	)
+	local credited = if snap and snap.result and type(snap.result.total) == "number" then snap.result.total else 20
+	check("match 2: profile credited separately", credited >= 20 and waitFor(function()
+		local p = PlayerDataService.GetProfile(player)
+		return p ~= nil and p.ChronosScrap == scrapBefore + credited
+	end, 3), credited)
 	check(
 		"match 2: eliminated player respawns in the lobby",
 		waitFor(function()

@@ -130,6 +130,14 @@ local function snapshot(): { [string]: any }
 			won = result.won,
 			total = result.rewardTotal,
 			lines = #result.rewards,
+			-- Match breakdown only; `total` also includes contract/level-up Scrap from progression.
+			breakdown = (function()
+				local sum = 0
+				for _, line in result.rewards do
+					sum += line.amount
+				end
+				return sum
+			end)(),
 		}
 	end
 	local profile = ClientState.get("profile")
