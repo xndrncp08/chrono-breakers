@@ -71,7 +71,7 @@ and durations only — no user ids, names or chat — and are:
 * sent as seven headline `AnalyticsService` custom events (Roblox aggregates them per experience;
   fields: map, winner, squad size). Only published experiences report them.
 
-Fields: map, squad size, duration, winner and reason, extracted/erased, terminals and time to the
+Fields: map, Timeline Condition, squad size, duration, winner and reason, extracted/erased, terminals and time to the
 first breach, hits, downs, containments, rescues, camping releases, bleed-outs, **tunnel hits**
 (hits on an Infiltrator within 15 s of their rescue), chase count/average/longest, calibration
 grades, ability uses by id, per-class picks/extractions/erasures, disconnects by role.
@@ -90,6 +90,7 @@ grades, ability uses by id, per-class picks/extractions/erasures, disconnects by
 | Disconnects per match | < 0.3 | spikes after a balance change point at frustration |
 | Class extraction rate | within ±10 pts of the mean | one class consistently higher/lower |
 | Map Keeper win rate | within ±10 pts of overall | a map is a Keeper/Infiltrator map |
+| Condition Keeper win rate | within ±8 pts of Stable | a condition favours one side |
 
 Unit tests passing says nothing about balance. Change one tunable at a time, note it under
 "Playtest observations" with the match count it was judged on, and compare the aggregates.

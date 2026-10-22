@@ -43,7 +43,7 @@ local function sendAnalytics(summary: MatchTelemetry.Summary)
 	local fields = {
 		[Enum.AnalyticsCustomFieldKeys.CustomField01.Name] = summary.mapId,
 		[Enum.AnalyticsCustomFieldKeys.CustomField02.Name] = summary.winner,
-		[Enum.AnalyticsCustomFieldKeys.CustomField03.Name] = `squad{summary.squad}`,
+		[Enum.AnalyticsCustomFieldKeys.CustomField03.Name] = `squad{summary.squad}/{summary.condition}`,
 	}
 	local metrics = {
 		MatchDurationSec = summary.durationSec,
@@ -69,7 +69,7 @@ local function onEvent(name: string, payload: any)
 		current = MatchTelemetry.new(deps.WorldService.GetMapId() or "Unknown", function(userId: number): string?
 			local player = Players:GetPlayerByUserId(userId)
 			return if player then deps.MatchService.GetMatchClass(player) else nil
-		end)
+		end, deps.PerkService.GetCondition())
 	end
 	local telemetry = current
 	if not telemetry then

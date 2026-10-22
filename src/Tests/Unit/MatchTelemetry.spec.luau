@@ -7,7 +7,7 @@ local CLASSES: { [number]: string } = { [1] = "Ghost", [2] = "Medic", [3] = "Gho
 local function play(): MatchTelemetry.MatchTelemetry
 	local m = MatchTelemetry.new("Foundry", function(userId)
 		return CLASSES[userId]
-	end)
+	end, "Entropy")
 	m:chase(1, true, 5) -- before the match: ignored
 	m:observe("ConditionChanged", { userId = 1, cause = "Strike", condition = "Injured" }, 5)
 	m:observe("MatchStarted", {
@@ -52,6 +52,7 @@ return function(t: any)
 		t.it("summarises a match with anonymous counts only", function()
 			local s = play():summary(100) :: MatchTelemetry.Summary
 			t.expect(s.mapId).toBe("Foundry")
+			t.expect(s.condition).toBe("Entropy")
 			t.expect(s.squad).toBe(3)
 			t.expect(s.durationSec).toBe(90)
 			t.expect(s.winner).toBe("TimeKeeper")
@@ -93,6 +94,7 @@ return function(t: any)
 			t.expect(agg.tunnelHitShare).toBeNear(1 / 3, 0.001)
 			t.expect(agg.byMap.Foundry.keeperWins).toBe(1)
 			t.expect(agg.byMap.Archive.matches).toBe(1)
+			t.expect(agg.byCondition.Entropy.matches).toBe(2)
 			t.expect(MatchTelemetry.aggregate({}).keeperWinRate).toBe(0)
 		end)
 	end)
