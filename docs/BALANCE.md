@@ -59,3 +59,54 @@ erase; camping releases a captive after 15 s; rails seal after 3 vaults in 40 s;
 terminals at 40 s (solo, four-player squad) with ×0.5/0.7/0.85 scaling for 1–3 Infiltrators;
 Collapse 120 s. Perk modifiers are bounded to ≤×2 and unlock only through play. All of these need
 1v4 playtests before release (see SURVIVAL_RELEASE).
+
+## Telemetry and balance framework
+
+Every match produces one anonymous summary (`Core/MatchTelemetry.luau`, adapted by
+`Services/TelemetryService.luau`; switches in `ServerConfig.Telemetry`). Summaries contain counts
+and durations only — no user ids, names or chat — and are:
+
+* printed as `[Telemetry] match {json}` in the server log (Developer Console → Server);
+* rolled into `[Telemetry] aggregate {json}` every 5 matches (last 50 kept per server);
+* sent as seven headline `AnalyticsService` custom events (Roblox aggregates them per experience;
+  fields: map, winner, squad size). Only published experiences report them.
+
+Fields: map, squad size, duration, winner and reason, extracted/erased, terminals and time to the
+first breach, hits, downs, containments, rescues, camping releases, bleed-outs, **tunnel hits**
+(hits on an Infiltrator within 15 s of their rescue), chase count/average/longest, calibration
+grades, ability uses by id, per-class picks/extractions/erasures, disconnects by role.
+
+### Targets (starting hypotheses, not verified)
+
+| Metric | Target band | Investigate when |
+| --- | --- | --- |
+| Keeper win rate (≥ 2 erased) | 45–60% | outside 35–70% over 50+ matches |
+| Match length | 7–11 min | median < 5 or > 13 min |
+| Average chase | 25–60 s | > 90 s (loops too strong) or < 15 s (no counterplay) |
+| Rescues per match | ≥ 1.5 in 4-squad matches | < 1: pods too punishing or camped |
+| Camping releases per match | < 0.3 | rising: Keepers learning to camp, or radius too big |
+| Tunnel-hit share | < 15% of hits | > 25%: Endurance/rescue burst too weak |
+| Time to first breach | 90–180 s | < 60 s: hacking too fast |
+| Disconnects per match | < 0.3 | spikes after a balance change point at frustration |
+| Class extraction rate | within ±10 pts of the mean | one class consistently higher/lower |
+| Map Keeper win rate | within ±10 pts of overall | a map is a Keeper/Infiltrator map |
+
+Unit tests passing says nothing about balance. Change one tunable at a time, note it under
+"Playtest observations" with the match count it was judged on, and compare the aggregates.
+
+### Repeatable test scenarios
+
+Run each on every map unless noted; record the telemetry line and observations.
+
+| # | Scenario | Setup | Watch |
+| --- | --- | --- | --- |
+| S1 | Full 1v4 match | 5 players, default loadouts | all targets above |
+| S2 | Loop strength | 1v1 on each map's loop gym; Infiltrator loops rails/barriers only | chase length; rail fatigue triggers; Keeper mind-games through Blast Doors |
+| S3 | Latency fairness | Studio Network → Incoming replication lag 150 ms on the Keeper client | hits that land on screen register; no hits through corners already rounded |
+| S4 | Afterimage read | Infiltrator breaks LoS and casts; Keeper follows residue | decoy rate vs. Pulse/strike reads; cast chime audible |
+| S5 | Camping | Keeper stays within 18 studs of a pod | release at 15 s; telemetry campReleases = 1 |
+| S6 | Tunnelling | Keeper chases only the rescued Infiltrator | Endurance absorbs; tunnelHits counted |
+| S7 | Last survivor | 3 Infiltrators erased/left before 4 breaches | Slip Rift opens; Keeper can seal it |
+| S8 | Collapse | 4 breaches; relay contested | 120 s timer, tiers at 50%/80%, shockwave reveals |
+| S9 | Squad scaling | 1v1, 1v2, 1v3 matches | hack time and win rate stay in band |
+| S10 | Disconnects | kick an Infiltrator mid-chase and the Keeper mid-match | resolution, rewards, telemetry disconnects |

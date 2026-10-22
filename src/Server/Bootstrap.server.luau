@@ -33,6 +33,7 @@ local ORDER = {
 	"PerkService",
 	"AnomalyService",
 	"RewardService",
+	"TelemetryService",
 }
 
 local registry: { [string]: any } = {}

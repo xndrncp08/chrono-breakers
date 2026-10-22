@@ -146,6 +146,7 @@ local function updateChase()
 	end
 	for _, event in chase:update(now(), samples) do
 		sendChase(event.userId, event.kind == "ChaseStarted")
+		deps.TelemetryService.Chase(event.userId, event.kind == "ChaseStarted")
 	end
 	applyMomentum()
 end

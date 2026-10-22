@@ -45,6 +45,14 @@ ServerConfig.Security = table.freeze({
 	MovementSlack = 6, -- studs of slack per sample (knockback, physics)
 })
 
+-- Anonymous balance telemetry (TelemetryService / MatchTelemetry; docs/BALANCE.md).
+ServerConfig.Telemetry = table.freeze({
+	LogSummaries = true, -- one JSON line per match in the server log
+	AggregateEvery = 5, -- also print the rolling aggregate every N matches
+	HistorySize = 50, -- summaries kept for the aggregate (server lifetime)
+	AnalyticsEnabled = true, -- headline numbers to Roblox AnalyticsService custom events
+})
+
 ServerConfig.Combat = table.freeze({
 	EyeHeight = 1.5,
 })
