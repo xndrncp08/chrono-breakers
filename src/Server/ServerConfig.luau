@@ -45,6 +45,10 @@ ServerConfig.Security = table.freeze({
 	MovementSlack = 6, -- studs of slack per sample (knockback, physics)
 })
 
+ServerConfig.TimelineConditions = table.freeze({
+	Enabled = true, -- false: every match is "Stable"
+})
+
 ServerConfig.Combat = table.freeze({
 	EyeHeight = 1.5,
 })

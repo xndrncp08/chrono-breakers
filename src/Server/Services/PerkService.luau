@@ -2,16 +2,23 @@
 -- PerkService: locks each participant's perk loadout at match start (like gadgets and classes) and
 -- answers modifier lookups for the systems that own each rule. Lobby changes never affect a live
 -- match; perks a player has not unlocked never reach this table (ProfileSchema + Economy guard it).
+-- It also owns the match's Timeline Condition (ConditionConfig), whose modifiers multiply with perks.
 
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local ServerScriptService = game:GetService("ServerScriptService")
 
+local ConditionConfig = require(ReplicatedStorage.Shared.Config.ConditionConfig)
 local PerkConfig = require(ReplicatedStorage.Shared.Config.PerkConfig)
+
+local ServerConfig = require(script.Parent.Parent.ServerConfig)
 
 local PerkService = {}
 
 local deps: { [string]: any } = {}
 local locked: { [number]: { string } } = {}
+local condition = "Stable"
+local random = Random.new()
 
 function PerkService.Init(injected: { [string]: any })
 	deps = injected
@@ -46,14 +53,33 @@ function PerkService.Start()
 			end
 		elseif name == "MatchCleanup" then
 			table.clear(locked)
+			condition = "Stable"
 		end
 	end)
 end
 
--- Combined multiplicative modifier for a participant (1 when absent).
+-- Rolls this match's Timeline Condition (called by MatchService before roles are announced).
+-- Server-side `ForceTimelineCondition` on ServerScriptService pins it (tests, events).
+function PerkService.RollCondition(): string
+	local forced = ServerScriptService:GetAttribute("ForceTimelineCondition")
+	if type(forced) == "string" and ConditionConfig.get(forced) then
+		condition = forced
+	elseif ServerConfig.TimelineConditions.Enabled then
+		condition = ConditionConfig.roll(random:NextNumber())
+	else
+		condition = "Stable"
+	end
+	return condition
+end
+
+function PerkService.GetCondition(): string
+	return condition
+end
+
+-- Combined multiplicative modifier for a participant (1 when absent), including the condition.
 function PerkService.ValueFor(userId: number?, key: string): number
 	local perks = if userId then locked[userId] else nil
-	return if perks then PerkConfig.modifier(perks, key) else 1
+	return (if perks then PerkConfig.modifier(perks, key) else 1) * ConditionConfig.modifier(condition, key)
 end
 
 function PerkService.Value(player: Player?, key: string): number

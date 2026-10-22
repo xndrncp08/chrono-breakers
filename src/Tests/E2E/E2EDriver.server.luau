@@ -18,6 +18,9 @@ if not RunService:IsStudio() or testsFolder:GetAttribute("RunE2E") ~= true then
 	return
 end
 
+-- Deterministic timings: no Timeline Condition modifiers during the suites.
+ServerScriptService:SetAttribute("ForceTimelineCondition", "Stable")
+
 local channel = Instance.new("RemoteEvent")
 channel.Name = "E2EChannel"
 local replies: { [number]: any } = {}

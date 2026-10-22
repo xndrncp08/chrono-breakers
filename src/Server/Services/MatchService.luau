@@ -219,6 +219,7 @@ function MatchService.BuildSnapshot(): any
 	snapshot.anomaly = deps.AnomalyService.Snapshot()
 	snapshot.mapId = deps.WorldService.GetMapId()
 	snapshot.mapName = deps.WorldService.GetMap().name
+	snapshot.condition = deps.PerkService.GetCondition()
 	for _, participant in snapshot.participants do
 		participant.classId = matchClasses[participant.userId]
 	end
@@ -287,6 +288,7 @@ local function sendRoleAssignment(player: Player)
 		description = if role then role.Description else "",
 		classId = matchClasses[player.UserId],
 		mapName = deps.WorldService.GetMap().name,
+		condition = deps.PerkService.GetCondition(),
 		abilities = abilities,
 		keeperName = displayName(session.keeperUserId),
 		hasKeeper = session.keeperUserId ~= nil,
@@ -310,6 +312,7 @@ local function onMatchStarted(payload: any)
 	table.clear(matchLoadouts)
 	table.clear(matchClasses)
 	table.clear(spawnIndex)
+	deps.PerkService.RollCondition()
 	local infiltratorIndex = 0
 	for _, userId in payload.order do
 		local player = playerById(userId)
@@ -845,7 +848,9 @@ function MatchService.Init(injected: { [string]: any })
 				local player = playerById(userId)
 				local class = if player then ClassConfig.get(matchClasses[userId]) else nil
 				local speed = if class then class.HackSpeed else 1
-				return speed * (if player and deps.StatusEffectService.Has(player, "Overclock") then 1.5 else 1)
+				return speed
+					* (if player and deps.StatusEffectService.Has(player, "Overclock") then 1.5 else 1)
+					* deps.PerkService.ValueFor(userId, "HackSpeed")
 			end,
 			getName = function(userId: number)
 				local player = playerById(userId)

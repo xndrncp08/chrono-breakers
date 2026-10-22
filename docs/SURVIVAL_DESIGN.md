@@ -95,6 +95,25 @@ inside is Erased. If a single Infiltrator is left in play before the Collapse, a
 at a far anomaly site: a 2 s channel escapes; the Keeper can seal it (1.5 s), which starts the
 Collapse early. Outcomes play short camera sequences (escape lift, erasure glitch, Keeper victory).
 
+## Timeline Conditions
+
+Each match rolls one condition (`ConditionConfig`, weights in the file; disable with
+`ServerConfig.TimelineConditions.Enabled`). It is shown on the deployment card and under the HUD
+objectives. Every condition gives one side something and the other side something back, reusing
+perk modifier keys so the owning systems apply it with no special cases:
+
+| Condition | Effect |
+| --- | --- |
+| Stable Timeline (weight 4) | none |
+| Accelerated Entropy | hacks +15% speed; pods drain +20% |
+| Overcharged Pulses | calibration arcs +20%; misses cost +40% |
+| Brittle Seconds | barrier stuns +25%; Keeper hit recoil −20% |
+| Mending Loop | Re-sync/Patch +20%; Overload regression +50% |
+| Restless Echoes | stamina regen +20%; calibration traces last +50% |
+
+`ForceTimelineCondition` (server attribute on ServerScriptService) pins one; the E2E driver pins
+Stable.
+
 ## Progression (no pay-to-win)
 
 Two perk slots per role. Class Protocols unlock through class mastery, shared Protocols through
